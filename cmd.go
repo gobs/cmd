@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/gobs/readline"
 
-        "fmt"
+	"fmt"
 	"strings"
 )
 
@@ -19,50 +19,50 @@ type Cmd struct {
 	EmptyLine func()
 	Default   func(string)
 
-        Commands  map[string]Command
+	Commands map[string]Command
 }
 
 func (cmd *Cmd) Init() {
-    cmd.Commands = make(map[string]Command)
+	cmd.Commands = make(map[string]Command)
 
-    if cmd.PreLoop == nil {
-        cmd.PreLoop = func() {}
-    }
-    if cmd.PostLoop == nil {
-        cmd.PostLoop = func() {}
-    }
-    if cmd.PreCmd == nil {
-        cmd.PreCmd = func(string) {}
-    }
-    if cmd.PostCmd == nil {
-        cmd.PostCmd = func(line string, stop bool) (bool) { return stop }
-    }
-    if cmd.EmptyLine == nil {
-        cmd.EmptyLine = func() {}
-    }
-    if cmd.Default == nil {
-        cmd.Default = func(line string) { fmt.Printf("invalid command: %v\n", line) }
-    }
+	if cmd.PreLoop == nil {
+		cmd.PreLoop = func() {}
+	}
+	if cmd.PostLoop == nil {
+		cmd.PostLoop = func() {}
+	}
+	if cmd.PreCmd == nil {
+		cmd.PreCmd = func(string) {}
+	}
+	if cmd.PostCmd == nil {
+		cmd.PostCmd = func(line string, stop bool) bool { return stop }
+	}
+	if cmd.EmptyLine == nil {
+		cmd.EmptyLine = func() {}
+	}
+	if cmd.Default == nil {
+		cmd.Default = func(line string) { fmt.Printf("invalid command: %v\n", line) }
+	}
 }
 
 func (cmd *Cmd) OneCmd(line string) (stop bool) {
 
-        parts := strings.SplitN(line, " ", 2)
-        cname := parts[0]
+	parts := strings.SplitN(line, " ", 2)
+	cname := parts[0]
 
-        fn, ok := cmd.Commands[cname]
+	fn, ok := cmd.Commands[cname]
 
-        if ok {
-            var params string
+	if ok {
+		var params string
 
-            if len(parts) > 1 {
-                params = strings.TrimSpace(parts[1])
-            }
+		if len(parts) > 1 {
+			params = strings.TrimSpace(parts[1])
+		}
 
-            stop = fn(params)
-        } else {
-            cmd.Default(line)
-        }
+		stop = fn(params)
+	} else {
+		cmd.Default(line)
+	}
 
 	return
 }
@@ -72,7 +72,7 @@ func (cmd *Cmd) CmdLoop() {
 		cmd.Prompt = "> "
 	}
 
-        cmd.PreLoop()
+	cmd.PreLoop()
 
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
@@ -83,21 +83,21 @@ func (cmd *Cmd) CmdLoop() {
 
 		line := strings.TrimSpace(*result)
 		if line == "" {
-                        cmd.EmptyLine()
+			cmd.EmptyLine()
 			continue
 		}
 
 		readline.AddHistory(*result) // allow user to recall this line
 
-                cmd.PreCmd(line)
+		cmd.PreCmd(line)
 
 		stop := cmd.OneCmd(line)
-                stop = cmd.PostCmd(line, stop)
+		stop = cmd.PostCmd(line, stop)
 
 		if stop {
 			break
 		}
 	}
 
-        cmd.PostLoop()
+	cmd.PostLoop()
 }

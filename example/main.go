@@ -1,24 +1,29 @@
 package main
 
 import (
-    "github.com/gobs/cmd"
+	"github.com/gobs/cmd"
 
-    "fmt"
-    )
+	"fmt"
+)
 
 func main() {
-    commander := &cmd.Cmd{}
-    commander.Init()
+	commander := &cmd.Cmd{}
+	commander.Init()
 
-    commander.Commands["ls"] = func(line string) (stop bool) {
-        fmt.Println("listing stuff")
-        return
-    }
+	commander.Commands["ls"] = func(line string) (stop bool) {
+		fmt.Println("listing stuff")
+		return
+	}
 
-    commander.Commands["exit"] = func(line string) (stop bool) {
-        fmt.Println("goodbye!")
-        return true
-    }
+	commander.Commands[">"] = func(line string) (stop bool) {
+		commander.Prompt = line
+		return
+	}
 
-    commander.CmdLoop()
+	commander.Commands["exit"] = func(line string) (stop bool) {
+		fmt.Println("goodbye!")
+		return true
+	}
+
+	commander.CmdLoop()
 }
