@@ -7,7 +7,11 @@ import (
 	"strings"
 )
 
-type Command func(string) bool
+type Command struct {
+	Name string
+	Help string
+	Call func(string) bool
+}
 
 type Cmd struct {
 	Prompt string
@@ -43,6 +47,34 @@ func (cmd *Cmd) Init() {
 	if cmd.Default == nil {
 		cmd.Default = func(line string) { fmt.Printf("invalid command: %v\n", line) }
 	}
+
+	cmd.Add(Command{"help", `list available commands`, cmd.Help})
+}
+
+func (cmd *Cmd) Add(command Command) {
+	cmd.Commands[command.Name] = command
+}
+
+func (cmd *Cmd) Help(line string) (stop bool) {
+	if len(line) == 0 {
+		fmt.Println("Available commands:")
+
+		for k, _ := range cmd.Commands {
+			fmt.Println("    ", k)
+		}
+	} else {
+		c, ok := cmd.Commands[line]
+		if ok {
+			if len(c.Help) > 0 {
+				fmt.Println(c.Help)
+			} else {
+				fmt.Println("No help for ", line)
+			}
+		} else {
+			fmt.Println("unknown command")
+		}
+	}
+	return
 }
 
 func (cmd *Cmd) OneCmd(line string) (stop bool) {
@@ -50,7 +82,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	parts := strings.SplitN(line, " ", 2)
 	cname := parts[0]
 
-	fn, ok := cmd.Commands[cname]
+	command, ok := cmd.Commands[cname]
 
 	if ok {
 		var params string
@@ -59,7 +91,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 			params = strings.TrimSpace(parts[1])
 		}
 
-		stop = fn(params)
+		stop = command.Call(params)
 	} else {
 		cmd.Default(line)
 	}
