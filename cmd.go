@@ -1,3 +1,7 @@
+/*
+ * This package is used to implement "line oriented command interpreter", inspired by the python package with
+ * the same name http://docs.python.org/2/library/cmd.html
+ */
 package cmd
 
 import (
@@ -7,9 +11,15 @@ import (
 	"strings"
 )
 
+//
+// This is used to describe a new command
+//
 type Command struct {
+	// command name
 	Name string
+	// command description
 	Help string
+	// the function to call to execute the command
 	Call func(string) bool
 }
 
