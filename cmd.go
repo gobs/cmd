@@ -4,13 +4,13 @@
  
  Usage:
  
- commander := &Cmd{...}
- commander.Init()
- 
- commander.Add(Command{...})
- commander.Add(Command{...})
- 
- commander.CmdLoop()
+	 commander := &Cmd{...}
+	 commander.Init()
+	 
+	 commander.Add(Command{...})
+	 commander.Add(Command{...})
+	 
+	 commander.CmdLoop()
  */
 package cmd
 
