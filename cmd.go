@@ -37,8 +37,6 @@ type Cmd struct {
 }
 
 func (cmd *Cmd) Init() {
-	cmd.Commands = make(map[string]Command)
-
 	if cmd.PreLoop == nil {
 		cmd.PreLoop = func() {}
 	}
@@ -58,6 +56,7 @@ func (cmd *Cmd) Init() {
 		cmd.Default = func(line string) { fmt.Printf("invalid command: %v\n", line) }
 	}
 
+	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, cmd.Help})
 }
 
