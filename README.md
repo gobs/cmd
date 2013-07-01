@@ -3,6 +3,12 @@ cmd
 
 A library to create shell-like command processors, slightly inspired by the Python cmd/cmd2 package
 
+## Installation
+    $ go get github.com/gobs/cmd
+
+## Documentation
+http://godoc.org/github.com/gobs/cmd
+
 ## Example
 
     import "github.com/gobs/cmd"
@@ -47,7 +53,4 @@ A library to create shell-like command processors, slightly inspired by the Pyth
 
     // start command loop
     commander.CmdLoop()
-
-## Documentation
-http://godoc.org/github.com/gobs/cmd
 
