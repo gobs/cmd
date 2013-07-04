@@ -50,10 +50,9 @@ type Completer struct {
 func (c *Completer) Complete(prefix string, index int) string {
 	if index == 0 {
 		c.Matches = c.Matches[:0]
-		no_prefix := len(prefix) == 0
 
 		for _, w := range c.Words {
-			if no_prefix || strings.HasPrefix(w, prefix) {
+			if strings.HasPrefix(w, prefix) {
 				c.Matches = append(c.Matches, w)
 			}
 		}
