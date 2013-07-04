@@ -13,6 +13,37 @@ type Command struct {
 	Call func(string) bool
 }
 
+type Completer struct {
+	Words   []string
+	Matches []string
+}
+
+func (c *Completer) Complete(prefix string, index int) string {
+	if index == 0 {
+		c.Matches = c.Matches[:0]
+		no_prefix := len(prefix) == 0
+
+		for _, w := range c.Words {
+			if no_prefix || strings.HasPrefix(w, prefix) {
+				c.Matches = append(c.Matches, w)
+			}
+		}
+	}
+
+	if index < len(c.Matches) {
+		return c.Matches[index]
+	} else {
+		return ""
+	}
+}
+
+func NewCompleter(words []string) (c *Completer) {
+	c = new(Completer)
+	c.Words = words
+	c.Matches = make([]string, 0, len(c.Words))
+	return
+}
+
 type Cmd struct {
 	Prompt string
 
@@ -49,6 +80,17 @@ func (cmd *Cmd) Init() {
 	}
 
 	cmd.Add(Command{"help", `list available commands`, cmd.Help})
+}
+
+func (cmd *Cmd) addCommandCompleter() {
+	names := make([]string, 0, len(cmd.Commands))
+
+	for n, _ := range cmd.Commands {
+		names = append(names, n)
+	}
+
+	completer := NewCompleter(names)
+	readline.SetCompletionEntryFunction(completer.Complete)
 }
 
 func (cmd *Cmd) Add(command Command) {
@@ -103,6 +145,8 @@ func (cmd *Cmd) CmdLoop() {
 	if len(cmd.Prompt) == 0 {
 		cmd.Prompt = "> "
 	}
+
+	cmd.addCommandCompleter()
 
 	cmd.PreLoop()
 
