@@ -1,3 +1,17 @@
+/*
+ This package is used to implement "line oriented command interpreter", inspired by the python package with
+ the same name http://docs.python.org/2/library/cmd.html
+ 
+ Usage:
+ 
+	 commander := &Cmd{...}
+	 commander.Init()
+	 
+	 commander.Add(Command{...})
+	 commander.Add(Command{...})
+	 
+	 commander.CmdLoop()
+ */
 package cmd
 
 import (
@@ -7,17 +21,32 @@ import (
 	"strings"
 )
 
+//
+// This is used to describe a new command
+//
 type Command struct {
+	// command name
 	Name string
+	// command description
 	Help string
+	// the function to call to execute the command
 	Call func(string) bool
 }
 
+//
+// The context for command completion
+//
 type Completer struct {
+	// the list of words to match on
 	Words   []string
+	// the list of current matches
 	Matches []string
 }
 
+//
+// Return a word matching the prefix
+// If there are multiple matches, index selects which one to pick
+//
 func (c *Completer) Complete(prefix string, index int) string {
 	if index == 0 {
 		c.Matches = c.Matches[:0]
@@ -37,6 +66,9 @@ func (c *Completer) Complete(prefix string, index int) string {
 	}
 }
 
+//
+// Create a Completer and initialize with list of words
+//
 func NewCompleter(words []string) (c *Completer) {
 	c = new(Completer)
 	c.Words = words
@@ -44,22 +76,41 @@ func NewCompleter(words []string) (c *Completer) {
 	return
 }
 
+//
+// This the the "context" for the command interpreter
+//
 type Cmd struct {
+	// the prompt string
 	Prompt string
 
+	// this function is called before starting the command loop
 	PreLoop   func()
+	
+	// this function is called before terminating the command loop
 	PostLoop  func()
+	
+	// this function is called before executing the selected command
 	PreCmd    func(string)
+	
+	// this function is called after a command has been executed
+	// return true to terminate the interpreter, false to continue
 	PostCmd   func(string, bool) bool
+	
+	// this function is called if the last typed command was an empty line
 	EmptyLine func()
+	
+	// this function is called if the command line doesn't match any existing command
+	// by default it displays an error message
 	Default   func(string)
 
+	// this is the list of available commands indexed by command name
 	Commands map[string]Command
 }
 
+//
+// Initialize the command interpreter context
+//
 func (cmd *Cmd) Init() {
-	cmd.Commands = make(map[string]Command)
-
 	if cmd.PreLoop == nil {
 		cmd.PreLoop = func() {}
 	}
@@ -79,9 +130,13 @@ func (cmd *Cmd) Init() {
 		cmd.Default = func(line string) { fmt.Printf("invalid command: %v\n", line) }
 	}
 
+	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, cmd.Help})
 }
 
+//
+// Add a completer that matches on command names
+//
 func (cmd *Cmd) addCommandCompleter() {
 	names := make([]string, 0, len(cmd.Commands))
 
@@ -93,10 +148,18 @@ func (cmd *Cmd) addCommandCompleter() {
 	readline.SetCompletionEntryFunction(completer.Complete)
 }
 
+//
+// Add a command to the command interpreter.
+// Overrides a command with the same name, if there was one
+//
 func (cmd *Cmd) Add(command Command) {
 	cmd.Commands[command.Name] = command
 }
 
+//
+// Default help command.
+// It lists all available commands or it displays the help for the specified command
+//
 func (cmd *Cmd) Help(line string) (stop bool) {
 	if len(line) == 0 {
 		fmt.Println("Available commands:")
@@ -119,6 +182,9 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 	return
 }
 
+//
+// This method executes one command
+//
 func (cmd *Cmd) OneCmd(line string) (stop bool) {
 
 	parts := strings.SplitN(line, " ", 2)
@@ -141,6 +207,10 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	return
 }
 
+//
+// This is the command interpreter entry point.
+// It displays a prompt, waits for a command and executes it until the selected command returns true
+//
 func (cmd *Cmd) CmdLoop() {
 	if len(cmd.Prompt) == 0 {
 		cmd.Prompt = "> "
