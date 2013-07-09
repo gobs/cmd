@@ -1,23 +1,25 @@
 /*
  This package is used to implement "line oriented command interpreter", inspired by the python package with
  the same name http://docs.python.org/2/library/cmd.html
- 
+
  Usage:
- 
+
 	 commander := &Cmd{...}
 	 commander.Init()
-	 
+
 	 commander.Add(Command{...})
 	 commander.Add(Command{...})
-	 
+
 	 commander.CmdLoop()
- */
+*/
 package cmd
 
 import (
 	"github.com/gobs/readline"
 
 	"fmt"
+	"os"
+	"path"
 	"strings"
 )
 
@@ -38,7 +40,7 @@ type Command struct {
 //
 type Completer struct {
 	// the list of words to match on
-	Words   []string
+	Words []string
 	// the list of current matches
 	Matches []string
 }
@@ -82,28 +84,68 @@ type Cmd struct {
 	// the prompt string
 	Prompt string
 
+	// the history file
+	HistoryFile string
+
 	// this function is called before starting the command loop
-	PreLoop   func()
-	
+	PreLoop func()
+
 	// this function is called before terminating the command loop
-	PostLoop  func()
-	
+	PostLoop func()
+
 	// this function is called before executing the selected command
-	PreCmd    func(string)
-	
+	PreCmd func(string)
+
 	// this function is called after a command has been executed
 	// return true to terminate the interpreter, false to continue
-	PostCmd   func(string, bool) bool
-	
+	PostCmd func(string, bool) bool
+
 	// this function is called if the last typed command was an empty line
 	EmptyLine func()
-	
+
 	// this function is called if the command line doesn't match any existing command
 	// by default it displays an error message
-	Default   func(string)
+	Default func(string)
 
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
+}
+
+func (cmd *Cmd) readHistoryFile() {
+	if len(cmd.HistoryFile) == 0 {
+		// no history file
+		return
+	}
+
+	filepath := cmd.HistoryFile // start with current directory
+	if _, err := os.Stat(filepath); err == nil {
+		if err := readline.ReadHistoryFile(filepath); err != nil {
+			fmt.Println(err)
+		}
+
+		return
+	}
+
+	filepath = path.Join(os.Getenv("HOME"), filepath) // then check home directory
+	if _, err := os.Stat(filepath); err == nil {
+		if err := readline.ReadHistoryFile(filepath); err != nil {
+			fmt.Println(err)
+		}
+	}
+
+	// update HistoryFile with home path
+	cmd.HistoryFile = filepath
+}
+
+func (cmd *Cmd) writeHistoryFile() {
+	if len(cmd.HistoryFile) == 0 {
+		// no history file
+		return
+	}
+
+	if err := readline.WriteHistoryFile(cmd.HistoryFile); err != nil {
+		fmt.Println(err)
+	}
 }
 
 //
@@ -219,6 +261,8 @@ func (cmd *Cmd) CmdLoop() {
 
 	cmd.PreLoop()
 
+	cmd.readHistoryFile()
+
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
 		result := readline.ReadLine(&cmd.Prompt)
@@ -243,6 +287,8 @@ func (cmd *Cmd) CmdLoop() {
 			break
 		}
 	}
+
+	cmd.writeHistoryFile()
 
 	cmd.PostLoop()
 }
