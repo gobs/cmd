@@ -185,6 +185,7 @@ func (cmd *Cmd) Init() {
 
 	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, cmd.Help})
+	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd`, cmd.Go})
 }
 
 //
@@ -262,6 +263,16 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 			fmt.Println("unknown command")
 		}
 	}
+	return
+}
+
+func (cmd *Cmd) Go(line string) (stop bool) {
+	if strings.HasPrefix(line, "go ") {
+		fmt.Println("Don't go go me!")
+	} else {
+		go cmd.OneCmd(line)
+	}
+
 	return
 }
 
