@@ -4,7 +4,24 @@ import (
 	"github.com/gobs/cmd"
 
 	"fmt"
+	"strings"
 )
+
+var (
+	words = []string{"one", "two", "three", "four"}
+)
+
+func CompletionFunction(text string) []string {
+	matches := make([]string, 0, len(words))
+
+	for _, w := range words {
+		if strings.HasPrefix(w, text) {
+			matches = append(matches, w)
+		}
+	}
+
+	return matches
+}
 
 func Exit(line string) (stop bool) {
 	fmt.Println("goodbye!")
@@ -12,7 +29,7 @@ func Exit(line string) (stop bool) {
 }
 
 func main() {
-	commander := &cmd.Cmd{HistoryFile: ".rlhistory"}
+	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction}
 	commander.Init()
 
 	commander.Add(cmd.Command{

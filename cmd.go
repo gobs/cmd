@@ -107,8 +107,15 @@ type Cmd struct {
 	// by default it displays an error message
 	Default func(string)
 
+	// this function is called to implement command completion.
+	// it should return a list of words that match the input text
+	Complete func(string) []string
+
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
+
+	///////// private stuff /////////////
+	completer *Completer
 }
 
 func (cmd *Cmd) readHistoryFile() {
@@ -185,8 +192,20 @@ func (cmd *Cmd) addCommandCompleter() {
 		names = append(names, n)
 	}
 
-	completer := NewCompleter(names)
-	readline.SetCompletionEntryFunction(completer.Complete)
+	cmd.completer = NewCompleter(names)
+	//readline.SetCompletionEntryFunction(completer.Complete)
+
+	readline.SetAttemptedCompletionFunction(cmd.attemptedCompletion)
+}
+
+func (cmd *Cmd) attemptedCompletion(text string, start, end int) []string {
+	if start == 0 { // this is the command to match
+		return readline.CompletionMatches(text, cmd.completer.Complete)
+	} else if cmd.Complete != nil {
+		return cmd.Complete(text)
+	} else {
+		return nil
+	}
 }
 
 //
