@@ -111,7 +111,7 @@ type Cmd struct {
 
 	// this function is called to implement command completion.
 	// it should return a list of words that match the input text
-	Complete func(string) []string
+	Complete func(string, string, int, int) []string
 
 	// if true, enable shell commands
 	EnableShell bool
@@ -207,7 +207,7 @@ func (cmd *Cmd) attemptedCompletion(text string, start, end int) []string {
 	if start == 0 { // this is the command to match
 		return readline.CompletionMatches(text, cmd.completer.Complete)
 	} else if cmd.Complete != nil {
-		return cmd.Complete(text)
+		return cmd.Complete(text, readline.GetLineBuffer(), start, end)
 	} else {
 		return nil
 	}

@@ -11,7 +11,13 @@ var (
 	words = []string{"one", "two", "three", "four"}
 )
 
-func CompletionFunction(text string) []string {
+func CompletionFunction(text string, line string, start, end int) []string {
+	// for the "ls" command we let readline show real file names
+	if strings.HasPrefix(line, "ls ") {
+		return nil
+	}
+
+	// for all other commands, we pick from our list of completion words
 	matches := make([]string, 0, len(words))
 
 	for _, w := range words {
