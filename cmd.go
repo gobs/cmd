@@ -1,23 +1,26 @@
 /*
- This package is used to implement "line oriented command interpreter", inspired by the python package with
+ This package is used to implement a "line oriented command interpreter", inspired by the python package with
  the same name http://docs.python.org/2/library/cmd.html
- 
+
  Usage:
- 
+
 	 commander := &Cmd{...}
 	 commander.Init()
-	 
+
 	 commander.Add(Command{...})
 	 commander.Add(Command{...})
-	 
+
 	 commander.CmdLoop()
- */
+*/
 package cmd
 
 import (
+	"github.com/gobs/args"
 	"github.com/gobs/readline"
 
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -38,7 +41,7 @@ type Command struct {
 //
 type Completer struct {
 	// the list of words to match on
-	Words   []string
+	Words []string
 	// the list of current matches
 	Matches []string
 }
@@ -83,24 +86,27 @@ type Cmd struct {
 	Prompt string
 
 	// this function is called before starting the command loop
-	PreLoop   func()
-	
+	PreLoop func()
+
 	// this function is called before terminating the command loop
-	PostLoop  func()
-	
+	PostLoop func()
+
 	// this function is called before executing the selected command
-	PreCmd    func(string)
-	
+	PreCmd func(string)
+
 	// this function is called after a command has been executed
 	// return true to terminate the interpreter, false to continue
-	PostCmd   func(string, bool) bool
-	
+	PostCmd func(string, bool) bool
+
 	// this function is called if the last typed command was an empty line
 	EmptyLine func()
-	
+
 	// this function is called if the command line doesn't match any existing command
 	// by default it displays an error message
-	Default   func(string)
+	Default func(string)
+
+	// if true, enable shell commands
+	EnableShell bool
 
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
@@ -148,6 +154,24 @@ func (cmd *Cmd) addCommandCompleter() {
 }
 
 //
+// execute shell command
+//
+func shellExec(command string) {
+	args := args.GetArgs(command)
+	if len(args) < 1 {
+		fmt.Println("No command to exec")
+	} else {
+		cmd := exec.Command(args[0])
+		cmd.Args = args
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
 // Add a command to the command interpreter.
 // Overrides a command with the same name, if there was one
 //
@@ -185,6 +209,11 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 // This method executes one command
 //
 func (cmd *Cmd) OneCmd(line string) (stop bool) {
+
+	if cmd.EnableShell && strings.HasPrefix(line, "!") {
+		shellExec(line[1:])
+		return
+	}
 
 	parts := strings.SplitN(line, " ", 2)
 	cname := parts[0]

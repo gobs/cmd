@@ -12,7 +12,7 @@ func Exit(line string) (stop bool) {
 }
 
 func main() {
-	commander := &cmd.Cmd{}
+	commander := &cmd.Cmd{EnableShell: true}
 	commander.Init()
 
 	commander.Add(cmd.Command{
