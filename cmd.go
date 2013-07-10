@@ -1,5 +1,5 @@
 /*
- This package is used to implement "line oriented command interpreter", inspired by the python package with
+ This package is used to implement a "line oriented command interpreter", inspired by the python package with
  the same name http://docs.python.org/2/library/cmd.html
 
  Usage:
@@ -15,10 +15,12 @@
 package cmd
 
 import (
+	"github.com/gobs/args"
 	"github.com/gobs/readline"
 
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 )
@@ -110,6 +112,9 @@ type Cmd struct {
 	// this function is called to implement command completion.
 	// it should return a list of words that match the input text
 	Complete func(string) []string
+
+	// if true, enable shell commands
+	EnableShell bool
 
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
@@ -209,6 +214,24 @@ func (cmd *Cmd) attemptedCompletion(text string, start, end int) []string {
 }
 
 //
+// execute shell command
+//
+func shellExec(command string) {
+	args := args.GetArgs(command)
+	if len(args) < 1 {
+		fmt.Println("No command to exec")
+	} else {
+		cmd := exec.Command(args[0])
+		cmd.Args = args
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
 // Add a command to the command interpreter.
 // Overrides a command with the same name, if there was one
 //
@@ -246,6 +269,11 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 // This method executes one command
 //
 func (cmd *Cmd) OneCmd(line string) (stop bool) {
+
+	if cmd.EnableShell && strings.HasPrefix(line, "!") {
+		shellExec(line[1:])
+		return
+	}
 
 	parts := strings.SplitN(line, " ", 2)
 	cname := parts[0]

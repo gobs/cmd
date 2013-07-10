@@ -29,7 +29,7 @@ func Exit(line string) (stop bool) {
 }
 
 func main() {
-	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction}
+	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction, EnableShell: true}
 	commander.Init()
 
 	commander.Add(cmd.Command{
