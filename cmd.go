@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sort"
 	"strings"
 	"text/tabwriter"
 )
@@ -121,7 +122,8 @@ type Cmd struct {
 	Commands map[string]Command
 
 	///////// private stuff /////////////
-	completer *Completer
+	completer    *Completer
+	commandNames []string
 }
 
 func (cmd *Cmd) readHistoryFile() {
@@ -193,13 +195,16 @@ func (cmd *Cmd) Init() {
 // Add a completer that matches on command names
 //
 func (cmd *Cmd) addCommandCompleter() {
-	names := make([]string, 0, len(cmd.Commands))
+	cmd.commandNames = make([]string, 0, len(cmd.Commands))
 
 	for n, _ := range cmd.Commands {
-		names = append(names, n)
+		cmd.commandNames = append(cmd.commandNames, n)
 	}
 
-	cmd.completer = NewCompleter(names)
+	// sorting for Help()
+	sort.Strings(cmd.commandNames)
+
+	cmd.completer = NewCompleter(cmd.commandNames)
 	//readline.SetCompletionEntryFunction(completer.Complete)
 
 	readline.SetAttemptedCompletionFunction(cmd.attemptedCompletion)
@@ -256,7 +261,7 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		i := 0
 
-		for k, _ := range cmd.Commands {
+		for _, c := range cmd.commandNames {
 			if i > 0 {
 				if (i % 8) == 0 {
 					fmt.Fprintln(w, "")
@@ -267,7 +272,7 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 
 			i++
 
-			fmt.Fprint(w, k)
+			fmt.Fprint(w, c)
 		}
 
 		if (i % 8) != 0 {
