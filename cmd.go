@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"github.com/gobs/args"
+	"github.com/gobs/pretty"
 	"github.com/gobs/readline"
 
 	"fmt"
@@ -24,7 +25,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"text/tabwriter"
 )
 
 //
@@ -254,32 +254,16 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 	fmt.Println("")
 
 	if len(line) == 0 {
-		fmt.Println("Available commands (use 'help <topic'):")
+		fmt.Println("Available commands (use 'help <topic>'):")
 		fmt.Println("================================================================")
 
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-		i := 0
+		tp := pretty.NewTabPrinter(8)
 
 		for _, c := range cmd.commandNames {
-			if i > 0 {
-				if (i % 8) == 0 {
-					fmt.Fprintln(w, "")
-				} else {
-					fmt.Fprint(w, "\t")
-				}
-			}
-
-			i++
-
-			fmt.Fprint(w, c)
+			tp.Print(c)
 		}
 
-		if (i % 8) != 0 {
-			fmt.Fprintln(w, "")
-		}
-
-		w.Flush()
+		tp.Println()
 	} else {
 		c, ok := cmd.Commands[line]
 		if ok {
