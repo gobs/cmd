@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"text/tabwriter"
 )
 
 //
@@ -245,12 +246,35 @@ func (cmd *Cmd) Add(command Command) {
 // It lists all available commands or it displays the help for the specified command
 //
 func (cmd *Cmd) Help(line string) (stop bool) {
+	fmt.Println("")
+
 	if len(line) == 0 {
-		fmt.Println("Available commands:")
+		fmt.Println("Available commands (use 'help <topic'):")
+		fmt.Println("================================================================")
+
+		w := new(tabwriter.Writer)
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		i := 0
 
 		for k, _ := range cmd.Commands {
-			fmt.Println("    ", k)
+			if i > 0 {
+				if (i % 8) == 0 {
+					fmt.Fprintln(w, "")
+				} else {
+					fmt.Fprint(w, "\t")
+				}
+			}
+
+			i++
+
+			fmt.Fprint(w, k)
 		}
+
+		if (i % 8) != 0 {
+			fmt.Fprintln(w, "")
+		}
+
+		w.Flush()
 	} else {
 		c, ok := cmd.Commands[line]
 		if ok {
@@ -263,6 +287,8 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 			fmt.Println("unknown command")
 		}
 	}
+
+	fmt.Println("")
 	return
 }
 
