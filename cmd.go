@@ -25,6 +25,8 @@ import (
 	"path"
 	"sort"
 	"strings"
+        "strconv"
+        "sync"
 )
 
 //
@@ -124,6 +126,9 @@ type Cmd struct {
 	///////// private stuff /////////////
 	completer    *Completer
 	commandNames []string
+
+        waitGroup *sync.WaitGroup
+        waitMax, waitCount int
 }
 
 func (cmd *Cmd) readHistoryFile() {
@@ -282,10 +287,55 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 }
 
 func (cmd *Cmd) Go(line string) (stop bool) {
+        if strings.HasPrefix(line, "-") {
+            // should be --start or --wait
+
+	    args := args.ParseArgs(line)
+
+            if _, ok := args.Options["start"]; ok {
+                cmd.waitGroup = new(sync.WaitGroup)
+                cmd.waitCount = 0
+                cmd.waitMax = 0
+
+                if len(args.Arguments) > 0 {
+                    cmd.waitMax, _ = strconv.Atoi(args.Arguments[0])
+                }
+
+                return
+            }
+
+            if _, ok := args.Options["wait"]; ok {
+                if cmd.waitGroup == nil {
+                    fmt.Println("nothing to wait on")
+                } else {
+                    cmd.waitGroup.Wait()
+                    cmd.waitGroup = nil
+                }
+
+                return
+            }
+        }
+
 	if strings.HasPrefix(line, "go ") {
 		fmt.Println("Don't go go me!")
 	} else {
-		go cmd.OneCmd(line)
+                if cmd.waitGroup == nil {
+		    go cmd.OneCmd(line)
+                } else {
+                    if cmd.waitMax > 0 {
+                        if cmd.waitCount >= cmd.waitMax {
+                            cmd.waitGroup.Wait()
+                            cmd.waitCount = 0
+                        }
+                    }
+
+                    cmd.waitCount++
+                    cmd.waitGroup.Add(1)
+                    go func() {
+                        defer cmd.waitGroup.Done()
+                        cmd.OneCmd(line)
+                    }()
+                }
 	}
 
 	return
