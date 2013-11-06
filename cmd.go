@@ -193,7 +193,7 @@ func (cmd *Cmd) Init() {
 
 	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, cmd.Help})
-	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd`, cmd.Go})
+	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go})
 }
 
 //
