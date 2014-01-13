@@ -26,8 +26,8 @@ http://godoc.org/github.com/gobs/cmd
     }
     
     // initialize Cmd structure
-    commander := &cmd.Cmd{}
-    commander.Init(Prompt: "> ")
+    commander := &cmd.Cmd{Prompt: "> ",}
+    commander.Init()
     
     // add inline method
     commander.Add(cmd.Command{
