@@ -24,9 +24,9 @@ import (
 	"os/exec"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
-        "strconv"
-        "sync"
+	"sync"
 )
 
 //
@@ -127,8 +127,8 @@ type Cmd struct {
 	completer    *Completer
 	commandNames []string
 
-        waitGroup *sync.WaitGroup
-        waitMax, waitCount int
+	waitGroup          *sync.WaitGroup
+	waitMax, waitCount int
 }
 
 func (cmd *Cmd) readHistoryFile() {
@@ -193,6 +193,7 @@ func (cmd *Cmd) Init() {
 
 	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, cmd.Help})
+	cmd.Add(Command{"echo", `echo input line`, cmd.Echo})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go})
 }
 
@@ -286,56 +287,61 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 	return
 }
 
+func (cmd *Cmd) Echo(line string) (stop bool) {
+	fmt.Println(line)
+	return
+}
+
 func (cmd *Cmd) Go(line string) (stop bool) {
-        if strings.HasPrefix(line, "-") {
-            // should be --start or --wait
+	if strings.HasPrefix(line, "-") {
+		// should be --start or --wait
 
-	    args := args.ParseArgs(line)
+		args := args.ParseArgs(line)
 
-            if _, ok := args.Options["start"]; ok {
-                cmd.waitGroup = new(sync.WaitGroup)
-                cmd.waitCount = 0
-                cmd.waitMax = 0
+		if _, ok := args.Options["start"]; ok {
+			cmd.waitGroup = new(sync.WaitGroup)
+			cmd.waitCount = 0
+			cmd.waitMax = 0
 
-                if len(args.Arguments) > 0 {
-                    cmd.waitMax, _ = strconv.Atoi(args.Arguments[0])
-                }
+			if len(args.Arguments) > 0 {
+				cmd.waitMax, _ = strconv.Atoi(args.Arguments[0])
+			}
 
-                return
-            }
+			return
+		}
 
-            if _, ok := args.Options["wait"]; ok {
-                if cmd.waitGroup == nil {
-                    fmt.Println("nothing to wait on")
-                } else {
-                    cmd.waitGroup.Wait()
-                    cmd.waitGroup = nil
-                }
+		if _, ok := args.Options["wait"]; ok {
+			if cmd.waitGroup == nil {
+				fmt.Println("nothing to wait on")
+			} else {
+				cmd.waitGroup.Wait()
+				cmd.waitGroup = nil
+			}
 
-                return
-            }
-        }
+			return
+		}
+	}
 
 	if strings.HasPrefix(line, "go ") {
 		fmt.Println("Don't go go me!")
 	} else {
-                if cmd.waitGroup == nil {
-		    go cmd.OneCmd(line)
-                } else {
-                    if cmd.waitMax > 0 {
-                        if cmd.waitCount >= cmd.waitMax {
-                            cmd.waitGroup.Wait()
-                            cmd.waitCount = 0
-                        }
-                    }
+		if cmd.waitGroup == nil {
+			go cmd.OneCmd(line)
+		} else {
+			if cmd.waitMax > 0 {
+				if cmd.waitCount >= cmd.waitMax {
+					cmd.waitGroup.Wait()
+					cmd.waitCount = 0
+				}
+			}
 
-                    cmd.waitCount++
-                    cmd.waitGroup.Add(1)
-                    go func() {
-                        defer cmd.waitGroup.Done()
-                        cmd.OneCmd(line)
-                    }()
-                }
+			cmd.waitCount++
+			cmd.waitGroup.Add(1)
+			go func() {
+				defer cmd.waitGroup.Done()
+				cmd.OneCmd(line)
+			}()
+		}
 	}
 
 	return
