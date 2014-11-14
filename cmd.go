@@ -400,7 +400,9 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 			fmt.Println(cmd.Prompt, command)
 		}
 
-		cmd.OneCmd(command)
+		if cmd.OneCmd(command) {
+			break
+		}
 
 		if wait > 0 && i < count-1 {
 			time.Sleep(time.Duration(wait) * time.Millisecond)
