@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 //
@@ -180,6 +181,7 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"help", `list available commands`, cmd.Help})
 	cmd.Add(Command{"echo", `echo input line`, cmd.Echo})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go})
+	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat})
 }
 
 //
@@ -331,6 +333,69 @@ func (cmd *Cmd) Go(line string) (stop bool) {
 	return
 }
 
+func (cmd *Cmd) Repeat(line string) (stop bool) {
+	count := ^uint64(0) // almost forever
+	wait := 0           // no wait
+	echo := false
+	arg := ""
+
+	for {
+		if strings.HasPrefix(line, "-") {
+			// some options
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) < 2 {
+				// no command
+				fmt.Println("nothing to repeat")
+				return
+			}
+
+			arg, line = parts[0], parts[1]
+			if arg == "--" {
+				break
+			}
+
+			if arg == "--echo" {
+				echo = true
+			} else if strings.HasPrefix(arg, "--count=") {
+				count, _ = strconv.ParseUint(arg[8:], 10, 64)
+				fmt.Println("count", count)
+			} else if strings.HasPrefix(arg, "--wait=") {
+				wait, _ = strconv.Atoi(arg[7:])
+				fmt.Println("wait", wait)
+			} else {
+				// unknown option
+				fmt.Println("invalid option", arg)
+				return
+			}
+		} else {
+			break
+		}
+	}
+
+	formatted := strings.Contains(line, "%")
+
+	for i := uint64(0); i < count; i++ {
+		command := line
+		if formatted {
+			command = fmt.Sprintf(line, i)
+		}
+
+		if echo {
+			fmt.Println(cmd.Prompt, command)
+		}
+
+		if cmd.OneCmd(command) {
+			break
+		}
+
+		if wait > 0 && i < count-1 {
+			time.Sleep(time.Duration(wait) * time.Millisecond)
+		}
+	}
+
+	return
+}
+
 //
 // This method executes one command
 //
@@ -388,7 +453,8 @@ func (cmd *Cmd) CmdLoop() {
 		}
 
 		line = strings.TrimSpace(line)
-		if line == "" {
+
+		if strings.HasPrefix(line, "#") || line == "" {
 			cmd.EmptyLine()
 			continue
 		}
