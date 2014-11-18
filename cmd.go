@@ -41,6 +41,16 @@ type Command struct {
 	Help string
 	// the function to call to execute the command
 	Call func(string) bool
+	// the function to call to print the help string
+	HelpFunc func()
+}
+
+func (c *Command) DefaultHelp() {
+	if len(c.Help) > 0 {
+		fmt.Println(c.Help)
+	} else {
+		fmt.Println("No help for ", c.Name)
+	}
 }
 
 //
@@ -178,10 +188,10 @@ func (cmd *Cmd) Init() {
 	}
 
 	cmd.Commands = make(map[string]Command)
-	cmd.Add(Command{"help", `list available commands`, cmd.Help})
-	cmd.Add(Command{"echo", `echo input line`, cmd.Echo})
-	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go})
-	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat})
+	cmd.Add(Command{"help", `list available commands`, cmd.Help, nil})
+	cmd.Add(Command{"echo", `echo input line`, cmd.Echo, nil})
+	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go, nil})
+	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat, nil})
 }
 
 //
@@ -235,6 +245,10 @@ func shellExec(command string) {
 // Overrides a command with the same name, if there was one
 //
 func (cmd *Cmd) Add(command Command) {
+	if command.HelpFunc == nil {
+		command.HelpFunc = command.DefaultHelp
+	}
+
 	cmd.Commands[command.Name] = command
 }
 
@@ -259,11 +273,7 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 	} else {
 		c, ok := cmd.Commands[line]
 		if ok {
-			if len(c.Help) > 0 {
-				fmt.Println(c.Help)
-			} else {
-				fmt.Println("No help for ", line)
-			}
+			c.HelpFunc()
 		} else {
 			fmt.Println("unknown command")
 		}

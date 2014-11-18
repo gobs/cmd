@@ -42,7 +42,8 @@ func main() {
 		func(line string) (stop bool) {
 			fmt.Println("listing stuff")
 			return
-		}})
+		},
+		nil})
 
 	commander.Add(cmd.Command{
 		Name: ">",
@@ -55,7 +56,8 @@ func main() {
 	commander.Add(cmd.Command{
 		"exit",
 		`terminate example`,
-		Exit})
+		Exit,
+		nil})
 
 	commander.CmdLoop()
 }
