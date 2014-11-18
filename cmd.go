@@ -454,8 +454,12 @@ func (cmd *Cmd) CmdLoop() {
 	cmd.addCommandCompleter()
 
 	cmd.PreLoop()
-
 	cmd.readHistoryFile()
+
+	defer func() {
+		cmd.writeHistoryFile()
+		cmd.PostLoop()
+	}()
 
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
@@ -486,8 +490,4 @@ func (cmd *Cmd) CmdLoop() {
 			break
 		}
 	}
-
-	cmd.writeHistoryFile()
-
-	cmd.PostLoop()
 }
