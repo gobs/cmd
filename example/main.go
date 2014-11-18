@@ -11,22 +11,20 @@ var (
 	words = []string{"one", "two", "three", "four"}
 )
 
-func CompletionFunction(text string, line string, start, end int) []string {
+func CompletionFunction(text, line string) (matches []string) {
 	// for the "ls" command we let readline show real file names
 	if strings.HasPrefix(line, "ls ") {
-		return nil
+		return
 	}
 
 	// for all other commands, we pick from our list of completion words
-	matches := make([]string, 0, len(words))
-
 	for _, w := range words {
 		if strings.HasPrefix(w, text) {
 			matches = append(matches, w)
 		}
 	}
 
-	return matches
+	return
 }
 
 func Exit(line string) (stop bool) {
