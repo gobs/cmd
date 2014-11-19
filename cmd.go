@@ -215,6 +215,8 @@ func (cmd *Cmd) wordCompleter(line string, pos int) (head string, completions []
 	start := strings.LastIndex(line[:pos], " ")
 	if start < 0 { // this is the command to match
 		return "", cmd.completer.Complete(line), line[pos:]
+	} else if strings.HasPrefix(line, "help ") {
+		return line[:start+1], cmd.completer.Complete(line[start+1:]), line[pos:]
 	} else if cmd.Complete != nil {
 		return line[:start+1], cmd.Complete(line[start+1:], line), line[pos:]
 	} else {
