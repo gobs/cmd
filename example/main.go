@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gobs/cmd"
+	"github.com/gobs/args"
 
 	"fmt"
 	"strings"
@@ -50,6 +51,14 @@ func main() {
 		Help: `Set prompt`,
 		Call: func(line string) (stop bool) {
 			commander.Prompt = line
+			return
+		}})
+
+	commander.Add(cmd.Command{
+		Name: "args",
+		Help: "parse args",
+		Call: func(line string) (stop bool) {
+			fmt.Printf("%q\n", args.GetArgs(line))
 			return
 		}})
 
