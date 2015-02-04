@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/gobs/cmd"
 	"github.com/gobs/args"
+	"github.com/gobs/cmd"
 
 	"fmt"
 	"strings"
+	"time"
 )
 
 var (
@@ -45,6 +46,17 @@ func main() {
 			return
 		},
 		nil})
+
+	commander.Add(cmd.Command{
+		"sleep",
+		`sleep for a while`,
+		func(line string) (stop bool) {
+			fmt.Println("sleeping...")
+			time.Sleep(10 * time.Second)
+			return
+		},
+		nil,
+	})
 
 	commander.Add(cmd.Command{
 		Name: ">",
