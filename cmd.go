@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -451,20 +453,40 @@ func (cmd *Cmd) CmdLoop() {
 	defer cmd.line.Close()
 
 	cmd.addCommandCompleter()
-
 	cmd.PreLoop()
 	cmd.readHistoryFile()
 
 	defer func() {
-		cmd.writeHistoryFile()
+		if cmd.line != nil {
+			cmd.writeHistoryFile()
+			cmd.line.Close()
+		}
+
 		cmd.PostLoop()
+	}()
+
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigc
+
+		// restore terminal
+		if cmd.line != nil {
+			cmd.line.Close()
+		}
+
+		// rethrow signal
+		signal.Stop(sigc)
+		p, _ := os.FindProcess(os.Getpid())
+		p.Signal(sig)
 	}()
 
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
 		line, err := cmd.line.Prompt(cmd.Prompt)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			break
 		}
 
@@ -475,10 +497,11 @@ func (cmd *Cmd) CmdLoop() {
 			continue
 		}
 
-		cmd.line.AppendHistory(line) // allow user to recall this line
+		if cmd.line != nil {
+			cmd.line.AppendHistory(line) // allow user to recall this line
+		}
 
 		cmd.PreCmd(line)
-
 		stop := cmd.OneCmd(line)
 		stop = cmd.PostCmd(line, stop)
 
