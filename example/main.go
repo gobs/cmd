@@ -67,6 +67,15 @@ func main() {
 		}})
 
 	commander.Add(cmd.Command{
+		Name: "timing",
+		Help: `Enable timing`,
+		Call: func(line string) (stop bool) {
+			line = strings.ToLower(line)
+			commander.Timing = line == "true" || line == "yes" || line == "1" || line == "on"
+			return
+		}})
+
+	commander.Add(cmd.Command{
 		Name: "args",
 		Help: "parse args",
 		Call: func(line string) (stop bool) {

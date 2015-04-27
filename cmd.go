@@ -117,6 +117,9 @@ type Cmd struct {
 	// if true, enable shell commands
 	EnableShell bool
 
+	// if true, print elapsed time
+	Timing bool
+
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
 
@@ -414,6 +417,12 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 // This method executes one command
 //
 func (cmd *Cmd) OneCmd(line string) (stop bool) {
+	if cmd.Timing {
+		start := time.Now()
+		defer func() {
+			fmt.Println("Elapsed:", time.Since(start))
+		}()
+	}
 
 	if cmd.EnableShell && strings.HasPrefix(line, "!") {
 		shellExec(line[1:])
