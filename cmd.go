@@ -114,11 +114,18 @@ type Cmd struct {
 	// it should return a list of words that match the input text
 	Complete func(string, string) []string
 
+	// this function is called when the user tries to interrupt a running
+	// command. If it returns true, the application will be terminated.
+	Interrupt func(os.Signal) bool
+
 	// if true, enable shell commands
 	EnableShell bool
 
 	// if true, print elapsed time
 	Timing bool
+
+	// if true, a Ctrl-C should return an error
+	// CtrlCAborts bool
 
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
@@ -190,6 +197,9 @@ func (cmd *Cmd) Init() {
 	}
 	if cmd.Default == nil {
 		cmd.Default = func(line string) { fmt.Printf("invalid command: %v\n", line) }
+	}
+	if cmd.Interrupt == nil {
+		cmd.Interrupt = func(sig os.Signal) bool { return true }
 	}
 
 	cmd.Commands = make(map[string]Command)
@@ -461,6 +471,8 @@ func (cmd *Cmd) CmdLoop() {
 	cmd.line = liner.NewLiner()
 	defer cmd.line.Close()
 
+	// cmd.line.SetCtrlCAborts(cmd.CtrlCAborts)
+
 	cmd.addCommandCompleter()
 	cmd.PreLoop()
 	cmd.readHistoryFile()
@@ -485,10 +497,15 @@ func (cmd *Cmd) CmdLoop() {
 			cmd.line.Close()
 		}
 
-		// rethrow signal
 		signal.Stop(sigc)
-		p, _ := os.FindProcess(os.Getpid())
-		p.Signal(sig)
+
+		if cmd.Interrupt(sig) {
+			// rethrow signal to kill app
+			p, _ := os.FindProcess(os.Getpid())
+			p.Signal(sig)
+		} else {
+			signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+		}
 	}()
 
 	// loop until ReadLine returns nil (signalling EOF)
@@ -510,9 +527,15 @@ func (cmd *Cmd) CmdLoop() {
 			cmd.line.AppendHistory(line) // allow user to recall this line
 		}
 
+		m, _ := liner.TerminalMode()
+
 		cmd.PreCmd(line)
 		stop := cmd.OneCmd(line)
 		stop = cmd.PostCmd(line, stop)
+
+		if m != nil {
+			m.ApplyMode()
+		}
 
 		if stop {
 			break
