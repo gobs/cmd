@@ -87,6 +87,9 @@ type Cmd struct {
 	// the prompt string
 	Prompt string
 
+	// the continuation prompt string
+	ContinuationPrompt string
+
 	// the history file
 	HistoryFile string
 
@@ -467,6 +470,9 @@ func (cmd *Cmd) CmdLoop() {
 	if len(cmd.Prompt) == 0 {
 		cmd.Prompt = "> "
 	}
+	if len(cmd.ContinuationPrompt) == 0 {
+		cmd.ContinuationPrompt = ": "
+	}
 
 	cmd.line = liner.NewLiner()
 	defer cmd.line.Close()
@@ -509,6 +515,7 @@ func (cmd *Cmd) CmdLoop() {
 	}()
 
 	// loop until ReadLine returns nil (signalling EOF)
+main_loop:
 	for {
 		line, err := cmd.line.Prompt(cmd.Prompt)
 		if err != nil {
@@ -517,6 +524,17 @@ func (cmd *Cmd) CmdLoop() {
 		}
 
 		line = strings.TrimSpace(line)
+
+		for strings.HasSuffix(line, "\\") { // continuation
+			l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				break main_loop
+			}
+
+			line = strings.TrimRight(line, "\\")
+			line = strings.TrimSpace(line) + " " + l
+		}
 
 		if strings.HasPrefix(line, "#") || line == "" {
 			cmd.EmptyLine()
