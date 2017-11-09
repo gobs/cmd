@@ -35,7 +35,8 @@ import (
 )
 
 var (
-	ARG_PATTERN = regexp.MustCompile(`\$(\d+|\*)`)
+	reArg = regexp.MustCompile(`\$(\d+|\*)`)
+	sep   = string(0xFFFD) // unicode replacement char
 )
 
 //
@@ -490,7 +491,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 
 func (cmd *Cmd) runFunction(name string, body []string, args []string) {
 	for _, line := range body {
-		line = ARG_PATTERN.ReplaceAllStringFunc(line, func(s string) string {
+		line = reArg.ReplaceAllStringFunc(line, func(s string) string {
 			arg := s[1:]
 			if arg == "*" {
 				return strings.Join(args, " ") // all args
@@ -573,15 +574,20 @@ main_loop:
 
 		line = strings.TrimSpace(line)
 
+		//
+		// merge lines ending with '\' into one single line
+		//
 		for strings.HasSuffix(line, "\\") { // continuation
+			line = strings.TrimRight(line, "\\")
+			line = strings.TrimSpace(line)
+
 			l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				break main_loop
 			}
 
-			line = strings.TrimRight(line, "\\")
-			line = strings.TrimSpace(line) + " " + l
+			line += " " + strings.TrimSpace(l)
 		}
 
 		if strings.HasPrefix(line, "#") || line == "" {
