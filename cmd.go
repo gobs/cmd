@@ -25,12 +25,17 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+)
+
+var (
+	ARG_PATTERN = regexp.MustCompile(`\$(\d+|\*)`)
 )
 
 //
@@ -137,6 +142,7 @@ type Cmd struct {
 	line         *liner.State
 	completer    *Completer
 	commandNames []string
+	functions    map[string][]string
 
 	waitGroup          *sync.WaitGroup
 	waitMax, waitCount int
@@ -210,6 +216,9 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"echo", `echo input line`, cmd.Echo, nil})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go, nil})
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat, nil})
+	cmd.Add(Command{"function", `function name body`, cmd.Function, nil})
+
+	cmd.functions = make(map[string][]string)
 }
 
 //
@@ -336,6 +345,9 @@ func (cmd *Cmd) Go(line string) (stop bool) {
 
 			return
 		}
+
+		fmt.Println("invalid option")
+		return
 	}
 
 	if strings.HasPrefix(line, "go ") {
@@ -379,7 +391,7 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 				return
 			}
 
-			arg, line = parts[0], parts[1]
+			arg, line = parts[0], strings.TrimSpace(parts[1])
 			if arg == "--" {
 				break
 			}
@@ -426,6 +438,20 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 	return
 }
 
+func (cmd *Cmd) Function(line string) (stop bool) {
+	// function name body
+	parts := strings.SplitN(line, " ", 2)
+	if len(parts) < 2 {
+		// no command
+		fmt.Println("missing body")
+		return
+	}
+
+	fname, body := parts[0], strings.TrimSpace(parts[1])
+	cmd.functions[fname] = []string{body}
+	return
+}
+
 //
 // This method executes one command
 //
@@ -442,24 +468,46 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 		return
 	}
 
+	var cname, params string
+
 	parts := strings.SplitN(line, " ", 2)
-	cname := parts[0]
 
-	command, ok := cmd.Commands[cname]
+	cname = parts[0]
+	if len(parts) > 1 {
+		params = strings.TrimSpace(parts[1])
+	}
 
-	if ok {
-		var params string
-
-		if len(parts) > 1 {
-			params = strings.TrimSpace(parts[1])
-		}
-
+	if command, ok := cmd.Commands[cname]; ok {
 		stop = command.Call(params)
+	} else if function, ok := cmd.functions[cname]; ok {
+		cmd.runFunction(cname, function, args.GetArgs(params))
 	} else {
 		cmd.Default(line)
 	}
 
 	return
+}
+
+func (cmd *Cmd) runFunction(name string, body []string, args []string) {
+	for _, line := range body {
+		line = ARG_PATTERN.ReplaceAllStringFunc(line, func(s string) string {
+			arg := s[1:]
+			if arg == "*" {
+				return strings.Join(args, " ") // all args
+			} else if n, err := strconv.Atoi(arg); err != nil {
+				fmt.Printf("invalid argument %q in %s:%q\n", s, name, line)
+				return ""
+			} else if n == 0 {
+				return name
+			} else if n > len(args) {
+				return ""
+			} else {
+				return args[n-1]
+			}
+		})
+
+		_ = cmd.OneCmd(line)
+	}
 }
 
 //
