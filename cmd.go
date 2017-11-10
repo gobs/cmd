@@ -449,11 +449,20 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 		if len(cmd.functions) == 0 {
 			fmt.Println("no functions")
 		} else {
-			fmt.Println("Functions:")
+			fmt.Println("functions:")
 			for fn, _ := range cmd.functions {
 				fmt.Println(" ", fn)
 			}
 		}
+
+		if len(cmd.FunctionContext) > 0 {
+                        fmt.Println()
+			fmt.Println("context:")
+			for k, v := range cmd.FunctionContext {
+				fmt.Println(" ", k, "=", v)
+			}
+		}
+
 		return
 	}
 
