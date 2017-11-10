@@ -35,7 +35,7 @@ import (
 )
 
 var (
-	reArg = regexp.MustCompile(`\$(\w+)|\$\((\w+)\)`)
+	reArg = regexp.MustCompile(`\$(\w+|\(\w+\)|[\*#]|\([\*#]\))`)
 	sep   = string(0xFFFD) // unicode replacement char
 )
 
@@ -139,9 +139,8 @@ type Cmd struct {
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
 
-	// this context is passed to running function and can
-	// provide predefined variables
-	FunctionContext map[string]string
+	// list of variables
+	Vars map[string]string
 
 	///////// private stuff /////////////
 	line         *liner.State
@@ -222,6 +221,7 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go, nil})
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat, nil})
 	cmd.Add(Command{"function", `function name body`, cmd.Function, nil})
+	cmd.Add(Command{"var", `var name value`, cmd.Variable, nil})
 
 	cmd.functions = make(map[string][]string)
 }
@@ -454,15 +454,6 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 				fmt.Println(" ", fn)
 			}
 		}
-
-		if len(cmd.FunctionContext) > 0 {
-                        fmt.Println()
-			fmt.Println("context:")
-			for k, v := range cmd.FunctionContext {
-				fmt.Println(" ", k, "=", v)
-			}
-		}
-
 		return
 	}
 
@@ -486,6 +477,7 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 	// function name body
 	fname, body := parts[0], strings.TrimSpace(parts[1])
 	if !strings.HasSuffix(body, "{") { // one line body
+		body := strings.Replace(body, "\\$", "$", -1) // for one-liners variables should be escaped
 		cmd.functions[fname] = []string{body}
 		return
 	}
@@ -523,6 +515,38 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 	return
 }
 
+func (cmd *Cmd) Variable(line string) (stop bool) {
+	// var
+	if line == "" {
+		if len(cmd.Vars) == 0 {
+			fmt.Println("no varaibles")
+		} else {
+			fmt.Println("variables:")
+			for k, v := range cmd.Vars {
+				fmt.Println(" ", k, "=", v)
+			}
+		}
+
+		return
+	}
+
+	parts := strings.SplitN(line, " ", 2)
+	name := parts[0]
+
+	// var name value
+	if len(parts) == 2 {
+		cmd.Vars[name] = strings.TrimSpace(parts[1])
+	}
+
+	value, ok := cmd.Vars[name]
+	if !ok {
+		fmt.Println("no variable", name)
+	} else {
+		fmt.Println(name, "=", value)
+	}
+	return
+}
+
 //
 // This method executes one command
 //
@@ -546,6 +570,10 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	cname = parts[0]
 	if len(parts) > 1 {
 		params = strings.TrimSpace(parts[1])
+
+		if cname != "function" { // XXX: don't expand one-line body of "function"
+			params = cmd.expandVariables(params, nil)
+		}
 	}
 
 	if command, ok := cmd.Commands[cname]; ok {
@@ -559,32 +587,45 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	return
 }
 
-func (cmd *Cmd) runFunction(name string, body []string, args []string) {
-	for _, line := range body {
-		line = reArg.ReplaceAllStringFunc(line, func(s string) string {
-			// ReplaceAll doesn't return submatches so we need to cleanup
-			arg := strings.TrimLeft(s, "$(")
-			arg = strings.TrimRight(arg, ")")
+func (cmd *Cmd) expandVariables(line string, args []string) string {
+	line = reArg.ReplaceAllStringFunc(line, func(s string) string {
+		// ReplaceAll doesn't return submatches so we need to cleanup
+		arg := strings.TrimLeft(s, "$(")
+		arg = strings.TrimRight(arg, ")")
 
-			if v, ok := cmd.FunctionContext[arg]; ok {
-				return v
-			}
+		if v, ok := cmd.Vars[arg]; ok {
+			return v
+		}
+
+		if len(args) > 0 {
+			// argument substitutions (for functions)
+			//fmt.Println("var", arg, args)
 
 			if arg == "*" {
-				return strings.Join(args, " ") // all args
-			} else if n, err := strconv.Atoi(arg); err != nil {
-				fmt.Printf("invalid argument %q in %s:%q\n", s, name, line)
-				return ""
-			} else if n == 0 {
-				return name
-			} else if n > len(args) {
-				return ""
-			} else {
-				return args[n-1]
+				return strings.Join(args[1:], " ") // all args
 			}
-		})
 
-		// fmt.Println("runLine", line)
+			if arg == "#" {
+				return strconv.Itoa(len(args) - 1) // args[0] is the name
+			}
+
+			if n, err := strconv.Atoi(arg); err == nil && n >= 0 && n < len(args) {
+				return args[n]
+			}
+		}
+
+		return ""
+	})
+
+	// fmt.Println("expandVariable", line)
+	return line
+}
+
+func (cmd *Cmd) runFunction(name string, body []string, args []string) {
+	args = append([]string{name}, args...)
+
+	for _, line := range body {
+		line = cmd.expandVariables(line, args)
 		_ = cmd.OneCmd(line)
 	}
 }
