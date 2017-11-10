@@ -38,6 +38,12 @@ func main() {
 	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction, EnableShell: true}
 	commander.Init()
 
+        commander.FunctionContext = map[string]string{
+                "user": "Bob",
+                "cwd": "/right/here",
+                "ret": "42",
+        }
+
 	commander.Add(cmd.Command{
 		"ls",
 		`list stuff`,

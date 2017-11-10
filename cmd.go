@@ -139,6 +139,10 @@ type Cmd struct {
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
 
+	// this context is passed to running function and can
+	// provide predefined variables
+	FunctionContext map[string]string
+
 	///////// private stuff /////////////
 	line         *liner.State
 	completer    *Completer
@@ -440,17 +444,22 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 }
 
 func (cmd *Cmd) Function(line string) (stop bool) {
-	// function name body
-	parts := strings.SplitN(line, " ", 2)
-	switch len(parts) {
-	case 0:
-		fmt.Println("Functions:")
-		for fn, _ := range cmd.functions {
-			fmt.Println(" ", fn)
+	// function
+	if line == "" {
+		if len(cmd.functions) == 0 {
+			fmt.Println("no functions")
+		} else {
+			fmt.Println("Functions:")
+			for fn, _ := range cmd.functions {
+				fmt.Println(" ", fn)
+			}
 		}
 		return
+	}
 
-	case 1:
+	parts := strings.SplitN(line, " ", 2)
+	// function name
+	if len(parts) == 1 {
 		fn := parts[0]
 		body, ok := cmd.functions[fn]
 		if !ok {
@@ -465,6 +474,7 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 		return
 	}
 
+	// function name body
 	fname, body := parts[0], strings.TrimSpace(parts[1])
 	if !strings.HasSuffix(body, "{") { // one line body
 		cmd.functions[fname] = []string{body}
@@ -546,6 +556,10 @@ func (cmd *Cmd) runFunction(name string, body []string, args []string) {
 			// ReplaceAll doesn't return submatches so we need to cleanup
 			arg := strings.TrimLeft(s, "$(")
 			arg = strings.TrimRight(arg, ")")
+
+			if v, ok := cmd.FunctionContext[arg]; ok {
+				return v
+			}
 
 			if arg == "*" {
 				return strings.Join(args, " ") // all args
