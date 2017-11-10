@@ -35,7 +35,7 @@ import (
 )
 
 var (
-	reArg = regexp.MustCompile(`\$(\d+|\*)`)
+	reArg = regexp.MustCompile(`\$(\w+)|\$\((\w+)\)`)
 	sep   = string(0xFFFD) // unicode replacement char
 )
 
@@ -543,7 +543,10 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 func (cmd *Cmd) runFunction(name string, body []string, args []string) {
 	for _, line := range body {
 		line = reArg.ReplaceAllStringFunc(line, func(s string) string {
-			arg := s[1:]
+			// ReplaceAll doesn't return submatches so we need to cleanup
+			arg := strings.TrimLeft(s, "$(")
+			arg = strings.TrimRight(arg, ")")
+
 			if arg == "*" {
 				return strings.Join(args, " ") // all args
 			} else if n, err := strconv.Atoi(arg); err != nil {
