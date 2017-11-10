@@ -442,14 +442,65 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 func (cmd *Cmd) Function(line string) (stop bool) {
 	// function name body
 	parts := strings.SplitN(line, " ", 2)
-	if len(parts) < 2 {
-		// no command
-		fmt.Println("missing body")
+	switch len(parts) {
+	case 0:
+		fmt.Println("Functions:")
+		for fn, _ := range cmd.functions {
+			fmt.Println(" ", fn)
+		}
+		return
+
+	case 1:
+		fn := parts[0]
+		body, ok := cmd.functions[fn]
+		if !ok {
+			fmt.Println("no function", fn)
+		} else {
+			fmt.Println("function", fn, "{")
+			for _, l := range body {
+				fmt.Println(" ", l)
+			}
+			fmt.Println("}")
+		}
 		return
 	}
 
 	fname, body := parts[0], strings.TrimSpace(parts[1])
-	cmd.functions[fname] = []string{body}
+	if !strings.HasSuffix(body, "{") { // one line body
+		cmd.functions[fname] = []string{body}
+		return
+	}
+
+	if body != "{" { // we can't do inline command + body
+		fmt.Println("unexpected body and block")
+		return
+	}
+
+	var lines []string
+
+	for {
+
+		l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+
+		l = strings.TrimSpace(l)
+		if strings.HasPrefix(line, "#") || line == "" {
+			cmd.EmptyLine()
+			continue
+		}
+
+		if l == "}" { // close block
+			break
+		}
+
+		lines = append(lines, l)
+	}
+
+	cmd.functions[fname] = lines
+	// fmt.Println("function", fname, lines)
 	return
 }
 
@@ -507,6 +558,7 @@ func (cmd *Cmd) runFunction(name string, body []string, args []string) {
 			}
 		})
 
+		// fmt.Println("runLine", line)
 		_ = cmd.OneCmd(line)
 	}
 }
