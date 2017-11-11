@@ -6,6 +6,7 @@ import (
 
 	"fmt"
 	"strings"
+        "strconv"
 	"time"
 )
 
@@ -57,8 +58,14 @@ func main() {
 		"sleep",
 		`sleep for a while`,
 		func(line string) (stop bool) {
+                        s := time.Second
+
+                        if t, err := strconv.Atoi(line); err == nil {
+                            s *= time.Duration(t)
+                        }
+
 			fmt.Println("sleeping...")
-			time.Sleep(10 * time.Second)
+			time.Sleep(s)
 			return
 		},
 		nil,
