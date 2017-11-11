@@ -565,7 +565,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	if cmd.Timing {
 		start := time.Now()
 		defer func() {
-			fmt.Println("Elapsed:", time.Since(start))
+			fmt.Println("Elapsed:", time.Since(start).Truncate(time.Millisecond))
 		}()
 	}
 
