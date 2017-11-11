@@ -476,6 +476,17 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 
 	// function name body
 	fname, body := parts[0], strings.TrimSpace(parts[1])
+	if body == "--delete" {
+		if _, ok := cmd.functions[fname]; ok {
+			delete(cmd.functions, fname)
+			fmt.Println("function", fname, "deleted")
+		} else {
+			fmt.Println("no function", fname)
+		}
+
+		return
+	}
+
 	if !strings.HasSuffix(body, "{") { // one line body
 		body := strings.Replace(body, "\\$", "$", -1) // for one-liners variables should be escaped
 		cmd.functions[fname] = []string{body}
