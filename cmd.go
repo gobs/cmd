@@ -222,6 +222,7 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat, nil})
 	cmd.Add(Command{"function", `function name body`, cmd.Function, nil})
 	cmd.Add(Command{"var", `var name value`, cmd.Variable, nil})
+	cmd.Add(Command{"if", `if (condition) body`, cmd.Conditional, nil})
 
 	cmd.functions = make(map[string][]string)
 }
@@ -487,38 +488,45 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 		return
 	}
 
-	if !strings.HasSuffix(body, "{") { // one line body
-		body := strings.Replace(body, "\\$", "$", -1) // for one-liners variables should be escaped
-		cmd.functions[fname] = []string{body}
-		return
-	}
-
-	if body != "{" { // we can't do inline command + body
-		fmt.Println("unexpected body and block")
-		return
-	}
-
-	var lines []string
-
-	for {
-
-		l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+	/*
+		if !strings.HasSuffix(body, "{") { // one line body
+			body := strings.Replace(body, "\\$", "$", -1) // for one-liners variables should be escaped
+			cmd.functions[fname] = []string{body}
 			return
 		}
 
-		l = strings.TrimSpace(l)
-		if strings.HasPrefix(line, "#") || line == "" {
-			cmd.EmptyLine()
-			continue
+		if body != "{" { // we can't do inline command + body
+			fmt.Println("unexpected body and block")
+			return
 		}
 
-		if l == "}" { // close block
-			break
-		}
+		var lines []string
 
-		lines = append(lines, l)
+		for {
+
+			l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return
+			}
+
+			l = strings.TrimSpace(l)
+			if strings.HasPrefix(line, "#") || line == "" {
+				cmd.EmptyLine()
+				continue
+			}
+
+			if l == "}" { // close block
+				break
+			}
+
+			lines = append(lines, l)
+		}
+	*/
+	lines, err := cmd.readBlock(body)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
 	cmd.functions[fname] = lines
@@ -558,6 +566,33 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	return
 }
 
+func (cmd *Cmd) Conditional(line string) (stop bool) {
+	if len(line) == 0 {
+		fmt.Println("missing condition")
+		return
+	}
+
+	cond, body := args.GetArgsN(line, 1)
+
+	res, err := cmd.evalConditional(cond[0])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if res {
+		lines, err := cmd.readBlock(body)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		cmd.runBlock("", lines, nil)
+	}
+
+	return
+}
+
 //
 // This method executes one command
 //
@@ -590,55 +625,12 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	if command, ok := cmd.Commands[cname]; ok {
 		stop = command.Call(params)
 	} else if function, ok := cmd.functions[cname]; ok {
-		cmd.runFunction(cname, function, args.GetArgs(params))
+		cmd.runBlock(cname, function, args.GetArgs(params))
 	} else {
 		cmd.Default(line)
 	}
 
 	return
-}
-
-func (cmd *Cmd) expandVariables(line string, args []string) string {
-	line = reArg.ReplaceAllStringFunc(line, func(s string) string {
-		// ReplaceAll doesn't return submatches so we need to cleanup
-		arg := strings.TrimLeft(s, "$(")
-		arg = strings.TrimRight(arg, ")")
-
-		if v, ok := cmd.Vars[arg]; ok {
-			return v
-		}
-
-		if len(args) > 0 {
-			// argument substitutions (for functions)
-			//fmt.Println("var", arg, args)
-
-			if arg == "*" {
-				return strings.Join(args[1:], " ") // all args
-			}
-
-			if arg == "#" {
-				return strconv.Itoa(len(args) - 1) // args[0] is the name
-			}
-
-			if n, err := strconv.Atoi(arg); err == nil && n >= 0 && n < len(args) {
-				return args[n]
-			}
-		}
-
-		return ""
-	})
-
-	// fmt.Println("expandVariable", line)
-	return line
-}
-
-func (cmd *Cmd) runFunction(name string, body []string, args []string) {
-	args = append([]string{name}, args...)
-
-	for _, line := range body {
-		line = cmd.expandVariables(line, args)
-		_ = cmd.OneCmd(line)
-	}
 }
 
 //
@@ -743,4 +735,155 @@ main_loop:
 			break
 		}
 	}
+}
+
+func (cmd *Cmd) expandVariables(line string, args []string) string {
+	line = reArg.ReplaceAllStringFunc(line, func(s string) string {
+		// ReplaceAll doesn't return submatches so we need to cleanup
+		arg := strings.TrimLeft(s, "$(")
+		arg = strings.TrimRight(arg, ")")
+
+		if v, ok := cmd.Vars[arg]; ok {
+			return v
+		}
+
+		if len(args) > 0 {
+			// argument substitutions (for functions)
+			//fmt.Println("var", arg, args)
+
+			if arg == "*" {
+				return strings.Join(args[1:], " ") // all args
+			}
+
+			if arg == "#" {
+				return strconv.Itoa(len(args) - 1) // args[0] is the name
+			}
+
+			if n, err := strconv.Atoi(arg); err == nil && n >= 0 && n < len(args) {
+				return args[n]
+			}
+		}
+
+		return ""
+	})
+
+	// fmt.Println("expandVariable", line)
+	return line
+}
+
+func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
+	if strings.HasPrefix(line, "(") && strings.HasSuffix(line, ")") { // (condition arg1 arg2...)
+		line = strings.TrimPrefix(line, "(")
+		line = strings.TrimSuffix(line, ")")
+		args := args.GetArgs(line)
+		if len(args) == 0 {
+			return false, fmt.Errorf("invalid condition: %q", line)
+		}
+
+		cond, args := args[0], args[1:]
+		nargs := len(args)
+
+		switch cond {
+		case "z":
+			if nargs != 1 {
+				err = fmt.Errorf("expected 1 argument, got %v", nargs)
+			} else {
+				res = len(args[0]) == 0
+			}
+		case "n":
+			if nargs != 1 {
+				err = fmt.Errorf("expected 1 argument, got %v", nargs)
+			} else {
+				res = len(args[0]) != 0
+			}
+		case "eq":
+			if nargs != 2 {
+				err = fmt.Errorf("expected 2 argument, got %v", nargs)
+			} else {
+				res = args[0] == args[1]
+			}
+		case "ne":
+			if nargs != 2 {
+				err = fmt.Errorf("expected 2 argument, got %v", nargs)
+			} else {
+				res = args[0] != args[1]
+			}
+		case "gt":
+			if nargs != 2 {
+				err = fmt.Errorf("expected 2 argument, got %v", nargs)
+			} else {
+				res = args[0] > args[1]
+			}
+		case "gte":
+			if nargs != 2 {
+				err = fmt.Errorf("expected 2 argument, got %v", nargs)
+			} else {
+				res = args[0] >= args[1]
+			}
+		case "lt":
+			if nargs != 2 {
+				err = fmt.Errorf("expected 2 argument, got %v", nargs)
+			} else {
+				res = args[0] < args[1]
+			}
+		case "lte":
+			if nargs != 2 {
+				err = fmt.Errorf("expected 2 argument, got %v", nargs)
+			} else {
+				res = args[0] <= args[1]
+			}
+		default:
+			err = fmt.Errorf("invalid condition: %q", line)
+		}
+	} else if len(line) == 0 || line == "0" {
+		res = false
+	} else {
+		res = true
+	}
+
+	return
+}
+
+func (cmd *Cmd) runBlock(name string, body []string, args []string) {
+	args = append([]string{name}, args...)
+
+	for _, line := range body {
+		line = cmd.expandVariables(line, args)
+		_ = cmd.OneCmd(line)
+	}
+}
+
+func (cmd *Cmd) readBlock(body string) ([]string, error) {
+	if !strings.HasSuffix(body, "{") { // one line body
+		body := strings.Replace(body, "\\$", "$", -1) // for one-liners variables should be escaped
+		return []string{body}, nil
+	}
+
+	if body != "{" { // we can't do inline command + body
+		return nil, fmt.Errorf("unexpected body and block")
+	}
+
+	var lines []string
+
+	for {
+
+		l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
+		if err != nil {
+			return nil, err
+		}
+
+		l = strings.TrimSpace(l)
+		if strings.HasPrefix(l, "#") || l == "" {
+			cmd.EmptyLine()
+			continue
+		}
+
+		if l == "}" { // close block
+			break
+		}
+
+		lines = append(lines, l)
+	}
+
+	return lines, nil
 }
