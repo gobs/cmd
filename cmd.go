@@ -382,8 +382,8 @@ func (cmd *Cmd) Go(line string) (stop bool) {
 }
 
 func (cmd *Cmd) Repeat(line string) (stop bool) {
-	count := ^uint64(0) // almost forever
-	wait := 0           // no wait
+	count := ^uint64(0)      // almost forever
+	wait := time.Duration(0) // no wait
 	echo := false
 	arg := ""
 
@@ -408,7 +408,12 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 				count, _ = strconv.ParseUint(arg[8:], 10, 64)
 				fmt.Println("count", count)
 			} else if strings.HasPrefix(arg, "--wait=") {
-				wait, _ = strconv.Atoi(arg[7:])
+				w, err := strconv.Atoi(arg[7:])
+				if err == nil {
+					wait = time.Duration(w) * time.Second
+				} else {
+					wait, _ = time.ParseDuration(arg[7:])
+				}
 				fmt.Println("wait", wait)
 			} else {
 				// unknown option
@@ -420,24 +425,23 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 		}
 	}
 
-	formatted := strings.Contains(line, "%")
+	block, _, err := cmd.readBlock(line, "")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	cmd.Vars["count"] = strconv.FormatUint(count, 10)
 
 	for i := uint64(0); i < count; i++ {
-		command := line
-		if formatted {
-			command = fmt.Sprintf(line, i)
-		}
-
-		if echo {
-			fmt.Println(cmd.Prompt, command)
-		}
-
-		if cmd.OneCmd(command) {
+		cmd.Vars["index"] = strconv.FormatUint(i, 10)
+		stop = cmd.runBlock("", block, nil, echo)
+		if stop {
 			break
 		}
 
 		if wait > 0 && i < count-1 {
-			time.Sleep(time.Duration(wait) * time.Millisecond)
+			time.Sleep(wait)
 		}
 	}
 
@@ -552,9 +556,9 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	}
 
 	if res {
-		cmd.runBlock("", trueBlock, nil)
+		stop = cmd.runBlock("", trueBlock, nil, false)
 	} else {
-		cmd.runBlock("", falseBlock, nil)
+		stop = cmd.runBlock("", falseBlock, nil, false)
 	}
 
 	return
@@ -592,7 +596,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	if command, ok := cmd.Commands[cname]; ok {
 		stop = command.Call(params)
 	} else if function, ok := cmd.functions[cname]; ok {
-		cmd.runBlock(cname, function, args.GetArgs(params))
+		stop = cmd.runBlock(cname, function, args.GetArgs(params), false)
 	} else {
 		cmd.Default(line)
 	}
@@ -811,13 +815,23 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 	return
 }
 
-func (cmd *Cmd) runBlock(name string, body []string, args []string) {
+func (cmd *Cmd) runBlock(name string, body []string, args []string, echo bool) (stop bool) {
 	args = append([]string{name}, args...)
 
 	for _, line := range body {
 		line = cmd.expandVariables(line, args)
-		_ = cmd.OneCmd(line)
+
+		if echo {
+			fmt.Println(cmd.Prompt, line)
+		}
+
+		stop = cmd.OneCmd(line)
+		if stop {
+			break
+		}
 	}
+
+	return
 }
 
 func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
