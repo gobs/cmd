@@ -588,7 +588,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	if len(parts) > 1 {
 		params = strings.TrimSpace(parts[1])
 
-		if cname != "function" { // XXX: don't expand one-line body of "function"
+		if cname != "function" && cname != "repeat" { // XXX: don't expand one-line body of "function" or "repeat"
 			params = cmd.expandVariables(params, nil)
 		}
 	}
