@@ -488,45 +488,10 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 		return
 	}
 
-	/*
-		if !strings.HasSuffix(body, "{") { // one line body
-			body := strings.Replace(body, "\\$", "$", -1) // for one-liners variables should be escaped
-			cmd.functions[fname] = []string{body}
-			return
-		}
-
-		if body != "{" { // we can't do inline command + body
-			fmt.Println("unexpected body and block")
-			return
-		}
-
-		var lines []string
-
-		for {
-
-			l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				return
-			}
-
-			l = strings.TrimSpace(l)
-			if strings.HasPrefix(line, "#") || line == "" {
-				cmd.EmptyLine()
-				continue
-			}
-
-			if l == "}" { // close block
-				break
-			}
-
-			lines = append(lines, l)
-		}
-	*/
-	lines, err := cmd.readBlock(body)
+	lines, _, err := cmd.readBlock(body, "")
 	if err != nil {
 		fmt.Println(err)
-		return
+		return true
 	}
 
 	cmd.functions[fname] = lines
@@ -577,17 +542,19 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	res, err := cmd.evalConditional(cond[0])
 	if err != nil {
 		fmt.Println(err)
-		return
+		return true
+	}
+
+	trueBlock, falseBlock, err := cmd.readBlock(body, "else")
+	if err != nil {
+		fmt.Println(err)
+		return true
 	}
 
 	if res {
-		lines, err := cmd.readBlock(body)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		cmd.runBlock("", lines, nil)
+		cmd.runBlock("", trueBlock, nil)
+	} else {
+		cmd.runBlock("", falseBlock, nil)
 	}
 
 	return
@@ -853,37 +820,77 @@ func (cmd *Cmd) runBlock(name string, body []string, args []string) {
 	}
 }
 
-func (cmd *Cmd) readBlock(body string) ([]string, error) {
+func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 	if !strings.HasSuffix(body, "{") { // one line body
 		body := strings.Replace(body, "\\$", "$", -1) // for one-liners variables should be escaped
-		return []string{body}, nil
+		return []string{body}, nil, nil
 	}
 
 	if body != "{" { // we can't do inline command + body
-		return nil, fmt.Errorf("unexpected body and block")
+		return nil, nil, fmt.Errorf("unexpected body and block")
 	}
 
-	var lines []string
+	var block1, block2 []string
+	var line string
+	var err error
 
 	for {
 
-		l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
+		line, err = cmd.line.Prompt(cmd.ContinuationPrompt)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		l = strings.TrimSpace(l)
-		if strings.HasPrefix(l, "#") || l == "" {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") || line == "" {
 			cmd.EmptyLine()
 			continue
 		}
 
-		if l == "}" { // close block
+		if strings.HasPrefix(line, "}") { // close first block
 			break
 		}
 
-		lines = append(lines, l)
+		block1 = append(block1, line)
 	}
 
-	return lines, nil
+	line = strings.TrimPrefix(line, "}")
+	line = strings.TrimSpace(line)
+
+	if strings.HasPrefix(line, "#") || line == "" {
+		return block1, nil, nil
+	}
+
+	if next != "" && !strings.HasPrefix(line, next) {
+		return nil, nil, fmt.Errorf("expected %q, got %q", next, line)
+	}
+
+	line = line[len(next):]
+	line = strings.TrimSpace(line)
+
+	if line != "{" {
+		return nil, nil, fmt.Errorf("expected }, got %q", line)
+	}
+
+	for {
+
+		line, err = cmd.line.Prompt(cmd.ContinuationPrompt)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") || line == "" {
+			cmd.EmptyLine()
+			continue
+		}
+
+		if strings.HasPrefix(line, "}") { // close first block
+			break
+		}
+
+		block2 = append(block2, line)
+	}
+
+	return block1, block2, nil
 }
