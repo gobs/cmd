@@ -150,6 +150,7 @@ type Cmd struct {
 
 	waitGroup          *sync.WaitGroup
 	waitMax, waitCount int
+	stop               bool
 }
 
 func (cmd *Cmd) readHistoryFile() {
@@ -440,7 +441,7 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 
 	for i := uint64(0); i < count; i++ {
 		cmd.Vars["index"] = strconv.FormatUint(i, 10)
-		stop = cmd.runBlock("", block, nil, echo)
+		stop = cmd.runBlock("", block, nil, echo) || cmd.stop
 		if stop {
 			break
 		}
@@ -645,6 +646,8 @@ func (cmd *Cmd) CmdLoop() {
 	go func() {
 		sig := <-sigc
 
+		cmd.stop = true
+
 		// restore terminal
 		if cmd.line != nil {
 			cmd.line.Close()
@@ -701,7 +704,7 @@ main_loop:
 
 		cmd.PreCmd(line)
 		stop := cmd.OneCmd(line)
-		stop = cmd.PostCmd(line, stop)
+		stop = cmd.PostCmd(line, stop) || cmd.stop
 
 		if m != nil {
 			m.ApplyMode()
@@ -830,7 +833,7 @@ func (cmd *Cmd) runBlock(name string, body []string, args []string, echo bool) (
 			fmt.Println(cmd.Prompt, line)
 		}
 
-		stop = cmd.OneCmd(line)
+		stop = cmd.OneCmd(line) || cmd.stop
 		if stop {
 			break
 		}
