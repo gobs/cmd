@@ -265,6 +265,11 @@ func shellExec(command string) {
 	if len(args) < 1 {
 		fmt.Println("No command to exec")
 	} else {
+		if strings.ContainsAny(command, "$*~") {
+			if _, err := exec.LookPath("sh"); err == nil {
+				args = []string{"sh", "-c", command}
+			}
+		}
 		cmd := exec.Command(args[0])
 		cmd.Args = args
 		cmd.Stdout = os.Stdout
@@ -507,7 +512,7 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	// var
 	if line == "" {
 		if len(cmd.Vars) == 0 {
-			fmt.Println("no varaibles")
+			fmt.Println("no variables")
 		} else {
 			fmt.Println("variables:")
 			for k, v := range cmd.Vars {
