@@ -20,6 +20,7 @@ import (
 
 	"github.com/peterh/liner"
 
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -224,6 +225,7 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"function", `function name body`, cmd.Function, nil})
 	cmd.Add(Command{"var", `var name value`, cmd.Variable, nil})
 	cmd.Add(Command{"if", `if (condition) body`, cmd.Conditional, nil})
+	cmd.Add(Command{"load", `load script-file`, cmd.Load, nil})
 
 	cmd.functions = make(map[string][]string)
 }
@@ -568,6 +570,37 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	}
 
 	return
+}
+
+func (cmd *Cmd) Load(line string) (stop bool) {
+	if len(line) == 0 {
+		fmt.Println("missing script file")
+		return
+	}
+
+	f, err := os.Open(line)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer f.Close()
+
+	var block []string
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		block = append(block, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	f.Close()
+
+	return cmd.runBlock(line, block, nil, false)
 }
 
 //
