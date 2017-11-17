@@ -22,6 +22,7 @@ import (
 
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -144,7 +145,8 @@ type Cmd struct {
 	Vars map[string]string
 
 	///////// private stuff /////////////
-	line         *liner.State
+	line         *liner.State   // interactive line reader
+	scanner      *bufio.Scanner // file based line reader
 	completer    *Completer
 	commandNames []string
 	functions    map[string][]string
@@ -392,7 +394,6 @@ func (cmd *Cmd) Go(line string) (stop bool) {
 func (cmd *Cmd) Repeat(line string) (stop bool) {
 	count := ^uint64(0)      // almost forever
 	wait := time.Duration(0) // no wait
-	echo := false
 	arg := ""
 
 	for {
@@ -410,9 +411,7 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 				break
 			}
 
-			if arg == "--echo" {
-				echo = true
-			} else if strings.HasPrefix(arg, "--count=") {
+			if strings.HasPrefix(arg, "--count=") {
 				count, _ = strconv.ParseUint(arg[8:], 10, 64)
 				fmt.Println("count", count)
 			} else if strings.HasPrefix(arg, "--wait=") {
@@ -443,7 +442,7 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 
 	for i := uint64(0); i < count; i++ {
 		cmd.Vars["index"] = strconv.FormatUint(i, 10)
-		stop = cmd.runBlock("", block, nil, echo) || cmd.stop
+		stop = cmd.runBlock("", block, nil) || cmd.stop
 		if stop {
 			break
 		}
@@ -564,9 +563,9 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	}
 
 	if res {
-		stop = cmd.runBlock("", trueBlock, nil, false)
+		stop = cmd.runBlock("", trueBlock, nil)
 	} else {
-		stop = cmd.runBlock("", falseBlock, nil, false)
+		stop = cmd.runBlock("", falseBlock, nil)
 	}
 
 	return
@@ -578,29 +577,46 @@ func (cmd *Cmd) Load(line string) (stop bool) {
 		return
 	}
 
-	f, err := os.Open(line)
+	fname := line
+	f, err := os.Open(fname)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	defer f.Close()
-
 	var block []string
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		block = append(block, scanner.Text())
+	cmd.setScanner(f)
+
+	for {
+		line, err = cmd.readLine("")
+		if err != nil {
+			break
+		}
+
+		block = append(block, line)
 	}
 
-	if err := scanner.Err(); err != nil {
+	if err != nil && err != io.EOF {
 		fmt.Println(err)
 		return
 	}
 
+	cmd.setScanner(nil)
 	f.Close()
 
-	return cmd.runBlock(line, block, nil, false)
+	return cmd.runBlock(fname, block, nil)
+}
+
+// XXX: don't expand one-line body of "function" or "repeat"
+func canExpand(line string) bool {
+	if strings.HasPrefix(line, "function ") {
+		return false
+	}
+	if strings.HasPrefix(line, "repeat ") {
+		return false
+	}
+	return true
 }
 
 //
@@ -612,6 +628,14 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 		defer func() {
 			fmt.Println("Elapsed:", time.Since(start).Truncate(time.Millisecond))
 		}()
+	}
+
+	if canExpand(line) {
+		line = cmd.expandVariables(line, nil)
+	}
+
+	if echo, _ := strconv.ParseBool(cmd.Vars["echo"]); echo {
+		fmt.Println(cmd.Prompt, line)
 	}
 
 	if cmd.EnableShell && strings.HasPrefix(line, "!") {
@@ -626,16 +650,12 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	cname = parts[0]
 	if len(parts) > 1 {
 		params = strings.TrimSpace(parts[1])
-
-		if cname != "function" && cname != "repeat" { // XXX: don't expand one-line body of "function" or "repeat"
-			params = cmd.expandVariables(params, nil)
-		}
 	}
 
 	if command, ok := cmd.Commands[cname]; ok {
 		stop = command.Call(params)
 	} else if function, ok := cmd.functions[cname]; ok {
-		stop = cmd.runBlock(cname, function, args.GetArgs(params), false)
+		stop = cmd.runBlock(cname, function, args.GetArgs(params))
 	} else {
 		cmd.Default(line)
 	}
@@ -698,30 +718,11 @@ func (cmd *Cmd) CmdLoop() {
 	}()
 
 	// loop until ReadLine returns nil (signalling EOF)
-main_loop:
 	for {
-		line, err := cmd.line.Prompt(cmd.Prompt)
+		line, err := cmd.readLine(cmd.Prompt)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			break
-		}
-
-		line = strings.TrimSpace(line)
-
-		//
-		// merge lines ending with '\' into one single line
-		//
-		for strings.HasSuffix(line, "\\") { // continuation
-			line = strings.TrimRight(line, "\\")
-			line = strings.TrimSpace(line)
-
-			l, err := cmd.line.Prompt(cmd.ContinuationPrompt)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				break main_loop
-			}
-
-			line += " " + strings.TrimSpace(l)
 		}
 
 		if strings.HasPrefix(line, "#") || line == "" {
@@ -747,6 +748,57 @@ main_loop:
 			break
 		}
 	}
+}
+
+func (cmd *Cmd) setScanner(r io.Reader) {
+	if r == nil {
+		cmd.scanner = nil
+	} else {
+		cmd.scanner = bufio.NewScanner(r)
+	}
+}
+
+func (cmd *Cmd) readOneLine(prompt string) (line string, err error) {
+	if cmd.scanner != nil {
+		if cmd.scanner.Scan() {
+			line = cmd.scanner.Text()
+		} else if cmd.scanner.Err() != nil {
+			err = cmd.scanner.Err()
+		} else {
+			err = io.EOF
+		}
+	} else {
+		line, err = cmd.line.Prompt(prompt)
+	}
+
+	return
+}
+
+func (cmd *Cmd) readLine(prompt string) (line string, err error) {
+	line, err = cmd.readOneLine(prompt)
+	if err != nil {
+		return
+	}
+
+	line = strings.TrimSpace(line)
+
+	//
+	// merge lines ending with '\' into one single line
+	//
+	for strings.HasSuffix(line, "\\") { // continuation
+		line = strings.TrimRight(line, "\\")
+		line = strings.TrimSpace(line)
+
+		l, err := cmd.readOneLine(cmd.ContinuationPrompt)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			break
+		}
+
+		line += " " + strings.TrimSpace(l)
+	}
+
+	return
 }
 
 func (cmd *Cmd) expandVariables(line string, args []string) string {
@@ -856,14 +908,13 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 	return
 }
 
-func (cmd *Cmd) runBlock(name string, body []string, args []string, echo bool) (stop bool) {
+func (cmd *Cmd) runBlock(name string, body []string, args []string) (stop bool) {
 	args = append([]string{name}, args...)
 
 	for _, line := range body {
-		line = cmd.expandVariables(line, args)
-
-		if echo {
-			fmt.Println(cmd.Prompt, line)
+		if strings.HasPrefix(line, "#") || line == "" {
+			cmd.EmptyLine()
+			continue
 		}
 
 		stop = cmd.OneCmd(line) || cmd.stop
@@ -891,7 +942,7 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 
 	for {
 
-		line, err = cmd.line.Prompt(cmd.ContinuationPrompt)
+		line, err = cmd.readLine(cmd.ContinuationPrompt)
 		if err != nil {
 			return nil, nil, err
 		}
