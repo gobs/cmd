@@ -552,15 +552,19 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 		return
 	}
 
-	cond, body := args.GetArgsN(line, 1)
+	parts := args.GetArgsN(line, 2) // [ condition, body ]
+        if len(parts) != 2 {
+                fmt.Println("missing body")
+                return
+        }
 
-	res, err := cmd.evalConditional(cond[0])
+	res, err := cmd.evalConditional(parts[0])
 	if err != nil {
 		fmt.Println(err)
 		return true
 	}
 
-	trueBlock, falseBlock, err := cmd.readBlock(body, "else")
+	trueBlock, falseBlock, err := cmd.readBlock(parts[1], "else")
 	if err != nil {
 		fmt.Println(err)
 		return true
