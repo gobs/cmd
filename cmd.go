@@ -41,6 +41,8 @@ var (
 	sep   = string(0xFFFD) // unicode replacement char
 )
 
+type arguments = map[string]string
+
 //
 // This is used to describe a new command
 //
@@ -142,7 +144,7 @@ type Cmd struct {
 	Commands map[string]Command
 
 	// list of variables
-	Vars map[string]string
+	Vars arguments
 
 	///////// private stuff /////////////
 	line         *liner.State   // interactive line reader
@@ -150,6 +152,7 @@ type Cmd struct {
 	completer    *Completer
 	commandNames []string
 	functions    map[string][]string
+	context      []arguments
 
 	waitGroup          *sync.WaitGroup
 	waitMax, waitCount int
@@ -438,10 +441,10 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 		return
 	}
 
-	cmd.Vars["count"] = strconv.FormatUint(count, 10)
+	cmd.pushContext(arguments{"count": strconv.FormatUint(count, 10)}, nil)
 
 	for i := uint64(0); i < count; i++ {
-		cmd.Vars["index"] = strconv.FormatUint(i, 10)
+		cmd.setContextVar("index", strconv.FormatUint(i, 10))
 		stop = cmd.runBlock("", block, nil) || cmd.stop
 		if stop {
 			break
@@ -452,6 +455,7 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 		}
 	}
 
+	cmd.popContext()
 	return
 }
 
@@ -631,7 +635,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 	}
 
 	if canExpand(line) {
-		line = cmd.expandVariables(line, nil)
+		line = cmd.expandVariables(line)
 	}
 
 	if echo, _ := strconv.ParseBool(cmd.Vars["echo"]); echo {
@@ -801,37 +805,84 @@ func (cmd *Cmd) readLine(prompt string) (line string, err error) {
 	return
 }
 
-func (cmd *Cmd) expandVariables(line string, args []string) string {
-	line = reArg.ReplaceAllStringFunc(line, func(s string) string {
-		// ReplaceAll doesn't return submatches so we need to cleanup
-		arg := strings.TrimLeft(s, "$(")
-		arg = strings.TrimRight(arg, ")")
+func (cmd *Cmd) pushContext(vars map[string]string, args []string) {
+	ctx := make(arguments)
 
-		if v, ok := cmd.Vars[arg]; ok {
+	for k, v := range vars {
+		ctx[k] = v
+	}
+
+	for i, v := range args {
+		k := strconv.Itoa(i)
+		ctx[k] = v
+	}
+
+	if args != nil {
+		ctx["*"] = strings.Join(args[1:], " ") // all args
+		ctx["#"] = strconv.Itoa(len(args[1:])) // args[0] is the function name
+	}
+
+	cmd.context = append(cmd.context, ctx)
+}
+
+func (cmd *Cmd) popContext() {
+	l := len(cmd.context)
+	if l == 0 {
+		panic("out of context")
+	}
+
+	cmd.context = cmd.context[:l-1]
+}
+
+func (cmd *Cmd) setContextVar(k, v string) {
+	l := len(cmd.context)
+	if l == 0 {
+		panic("out of context")
+	}
+
+	cmd.context[l-1][k] = v
+}
+
+func (cmd *Cmd) getContextVar(k string) string {
+	l := len(cmd.context)
+	if l == 0 {
+		panic("out of context")
+	}
+
+	for i := len(cmd.context) - 1; i >= 0; i-- {
+		if v, ok := cmd.context[i][k]; ok {
 			return v
 		}
+	}
 
-		if len(args) > 0 {
-			// argument substitutions (for functions)
-			//fmt.Println("var", arg, args)
+	return ""
+}
 
-			if arg == "*" {
-				return strings.Join(args[1:], " ") // all args
+func (cmd *Cmd) expandVariables(line string) string {
+	for {
+		// fmt.Println("before expand:", line)
+		found := false
+
+		line = reArg.ReplaceAllStringFunc(line, func(s string) string {
+			found = true
+
+			// ReplaceAll doesn't return submatches so we need to cleanup
+			arg := strings.TrimLeft(s, "$(")
+			arg = strings.TrimRight(arg, ")")
+
+			if v, ok := cmd.Vars[arg]; ok {
+				return v
 			}
 
-			if arg == "#" {
-				return strconv.Itoa(len(args) - 1) // args[0] is the name
-			}
+			return cmd.getContextVar(arg)
+		})
 
-			if n, err := strconv.Atoi(arg); err == nil && n >= 0 && n < len(args) {
-				return args[n]
-			}
+		// fmt.Println("after expand:", line)
+		if !found {
+			break
 		}
+	}
 
-		return ""
-	})
-
-	// fmt.Println("expandVariable", line)
 	return line
 }
 
@@ -910,6 +961,7 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 
 func (cmd *Cmd) runBlock(name string, body []string, args []string) (stop bool) {
 	args = append([]string{name}, args...)
+	cmd.pushContext(nil, args)
 
 	for _, line := range body {
 		if strings.HasPrefix(line, "#") || line == "" {
@@ -923,6 +975,7 @@ func (cmd *Cmd) runBlock(name string, body []string, args []string) (stop bool) 
 		}
 	}
 
+	cmd.popContext()
 	return
 }
 
