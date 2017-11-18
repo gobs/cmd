@@ -911,16 +911,26 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 
 		switch cond {
 		case "z":
-			if nargs != 1 {
-				err = fmt.Errorf("expected 1 argument, got %v", nargs)
-			} else {
+			switch nargs {
+			case 0:
+				res = true
+
+			case 1:
 				res = len(args[0]) == 0
+
+			default:
+				err = fmt.Errorf("expected 1 argument, got %v", nargs)
 			}
 		case "n":
-			if nargs != 1 {
-				err = fmt.Errorf("expected 1 argument, got %v", nargs)
-			} else {
+			switch nargs {
+			case 0:
+				res = false
+
+			case 1:
 				res = len(args[0]) != 0
+
+			default:
+				err = fmt.Errorf("expected 1 argument, got %v", nargs)
 			}
 		case "eq":
 			if nargs != 2 {
