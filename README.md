@@ -21,8 +21,8 @@ http://godoc.org/github.com/gobs/cmd
       
     // change the prompt
     func (cmd *Cmd) SetPrompt(line string) (stop bool) {
-    cmd.Prompt = line
-    return
+          cmd.Prompt = line
+          return
     }
     
     // initialize Cmd structure
@@ -55,3 +55,81 @@ http://godoc.org/github.com/gobs/cmd
     // start command loop
     commander.CmdLoop()
 
+## Available commands
+
+The command processor predefines a few useful commands, including function definitions and conditionals.
+
+Use the `help` command to see the list of available commands.
+
+Function definition is similart to bash functions:
+
+    function test {
+        echo Function name: $0
+        echo Number of arguments: $#
+        echo First argument: $1
+        echo All arguments: $*
+    }
+
+but you can also define a very short function (one-liner):
+
+    function oneliner echo "very short function"
+
+Variables can be set/listed using the `var` command:
+
+    var catch 22
+
+    var catch
+        catch: 22
+
+    echo $catch
+        22
+
+note that currently only "string" values are supported (i.e. `var x 1` is the same as `var x "1"1)
+
+Conditional flow with `if` and `else` commands:
+
+    if (condition) {
+        # true path
+    } else {
+        # false path
+    }
+
+The `else` block is optional:
+
+    if (condition) {
+        # only the truth
+    }
+
+And the short test:
+
+    if (condition) echo "yes!"
+
+## Conditions:
+
+The simplest condition is the "non empty argument":
+
+    if true echo "yes, it's true"
+
+But if you are using a variable you need to quote it:
+
+    if "$nonempty" echo "nonempty is not empty"
+
+All other conditionals are in the form: `(cond arguments...)`:
+
+    (z $var)        # $var is empty
+
+    (n $var)        # $var is not empty
+ 
+    (eq $var val)   # $var == val
+
+    (ne $var val)   # $var != val
+
+    (gt $var val)   # $var > val
+
+    (gte $var val)  # $var >= val
+
+    (lt $var val)   # $var < val
+
+    (lte $var val)  # $var <= val
+
+As for variables, for now only string comparisons are supported.
