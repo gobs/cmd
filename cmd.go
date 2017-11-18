@@ -857,7 +857,7 @@ func (cmd *Cmd) setContextVar(k, v string) {
 func (cmd *Cmd) getContextVar(k string) string {
 	l := len(cmd.context)
 	if l == 0 {
-		panic("out of context")
+		return ""
 	}
 
 	for i := len(cmd.context) - 1; i >= 0; i-- {
