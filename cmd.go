@@ -443,7 +443,7 @@ func (cmd *Cmd) Repeat(line string) (stop bool) {
 
 	cmd.pushContext(arguments{"count": strconv.FormatUint(count, 10)}, nil)
 
-	for i := uint64(0); i < count; i++ {
+	for i := uint64(1); i <= count; i++ {
 		cmd.setContextVar("index", strconv.FormatUint(i, 10))
 		stop = cmd.runBlock("", block, nil) || cmd.stop
 		if stop {
@@ -553,10 +553,10 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	}
 
 	parts := args.GetArgsN(line, 2) // [ condition, body ]
-        if len(parts) != 2 {
-                fmt.Println("missing body")
-                return
-        }
+	if len(parts) != 2 {
+		fmt.Println("missing body")
+		return
+	}
 
 	res, err := cmd.evalConditional(parts[0])
 	if err != nil {
@@ -592,28 +592,35 @@ func (cmd *Cmd) Load(line string) (stop bool) {
 		return
 	}
 
-	var block []string
-
 	cmd.setScanner(f)
+
+	defer func() {
+		cmd.setScanner(nil)
+		f.Close()
+	}()
 
 	for {
 		line, err = cmd.readLine("")
 		if err != nil {
+			if err != io.EOF {
+				fmt.Println(err)
+			}
+
 			break
 		}
 
-		block = append(block, line)
+		if strings.HasPrefix(line, "#") || line == "" {
+			cmd.EmptyLine()
+			continue
+		}
+
+		stop = cmd.OneCmd(line) || cmd.stop
+		if stop {
+			break
+		}
 	}
 
-	if err != nil && err != io.EOF {
-		fmt.Println(err)
-		return
-	}
-
-	cmd.setScanner(nil)
-	f.Close()
-
-	return cmd.runBlock(fname, block, nil)
+	return stop
 }
 
 // XXX: don't expand one-line body of "function" or "repeat"
@@ -1037,7 +1044,7 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 
 	for {
 
-		line, err = cmd.line.Prompt(cmd.ContinuationPrompt)
+		line, err = cmd.readLine(cmd.ContinuationPrompt)
 		if err != nil {
 			return nil, nil, err
 		}
