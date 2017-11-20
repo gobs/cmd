@@ -147,12 +147,13 @@ type Cmd struct {
 	Vars arguments
 
 	///////// private stuff /////////////
-	line         *liner.State   // interactive line reader
-	scanner      *bufio.Scanner // file based line reader
-	completer    *Completer
-	commandNames []string
-	functions    map[string][]string
-	context      []arguments
+	line          *liner.State   // interactive line reader
+	scanner       *bufio.Scanner // file based line reader
+	completer     *Completer
+	commandNames  []string
+	functions     map[string][]string
+	functionNames []string
+	context       []arguments
 
 	waitGroup          *sync.WaitGroup
 	waitMax, waitCount int
@@ -236,20 +237,35 @@ func (cmd *Cmd) Init() {
 }
 
 //
-// Add a completer that matches on command names
+// Add a completer that matches on command/function names
 //
-func (cmd *Cmd) addCommandCompleter() {
+func (cmd *Cmd) addCompleters() {
 	cmd.commandNames = make([]string, 0, len(cmd.Commands))
-
-	for n, _ := range cmd.Commands {
-		cmd.commandNames = append(cmd.commandNames, n)
+	for name := range cmd.Commands {
+		cmd.commandNames = append(cmd.commandNames, name)
 	}
+	sort.Strings(cmd.commandNames) // for help listing
 
-	// sorting for Help()
-	sort.Strings(cmd.commandNames)
+	cmd.functionNames = []string{}
 
 	cmd.completer = NewCompleter(cmd.commandNames)
 	cmd.line.SetWordCompleter(cmd.wordCompleter)
+}
+
+//
+// Update function completer (when function list changes)
+//
+func (cmd *Cmd) updateCompleter() {
+	cmd.functionNames = cmd.functionNames[:0]
+	for name := range cmd.functions {
+		cmd.functionNames = append(cmd.functionNames, name)
+	}
+	sort.Strings(cmd.functionNames) // for function listing
+
+	cmd.completer.Words = cmd.completer.Words[:0]
+	cmd.completer.Words = append(cmd.completer.Words, cmd.commandNames...)
+	cmd.completer.Words = append(cmd.completer.Words, cmd.functionNames...)
+	sort.Strings(cmd.completer.Words)
 }
 
 func (cmd *Cmd) wordCompleter(line string, pos int) (head string, completions []string, tail string) {
@@ -466,7 +482,7 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 			fmt.Println("no functions")
 		} else {
 			fmt.Println("functions:")
-			for fn, _ := range cmd.functions {
+			for _, fn := range cmd.functionNames {
 				fmt.Println(" ", fn)
 			}
 		}
@@ -495,6 +511,7 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 	if body == "--delete" {
 		if _, ok := cmd.functions[fname]; ok {
 			delete(cmd.functions, fname)
+			cmd.updateCompleter()
 			fmt.Println("function", fname, "deleted")
 		} else {
 			fmt.Println("no function", fname)
@@ -510,7 +527,7 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 	}
 
 	cmd.functions[fname] = lines
-	// fmt.Println("function", fname, lines)
+	cmd.updateCompleter()
 	return
 }
 
@@ -695,7 +712,7 @@ func (cmd *Cmd) CmdLoop() {
 
 	// cmd.line.SetCtrlCAborts(cmd.CtrlCAborts)
 
-	cmd.addCommandCompleter()
+	cmd.addCompleters()
 	cmd.PreLoop()
 	cmd.readHistoryFile()
 
