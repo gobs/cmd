@@ -37,7 +37,7 @@ import (
 )
 
 var (
-	reArg = regexp.MustCompile(`\$(\w+|\(\w+\)|[\*#]|\([\*#]\))`)
+	reArg = regexp.MustCompile(`\$(\w+|\(\w+\)|\(env.\w+\)|[\*#]|\([\*#]\))`)
 	sep   = string(0xFFFD) // unicode replacement char
 )
 
@@ -908,6 +908,10 @@ func (cmd *Cmd) expandVariables(line string) string {
 			// ReplaceAll doesn't return submatches so we need to cleanup
 			arg := strings.TrimLeft(s, "$(")
 			arg = strings.TrimRight(arg, ")")
+
+			if strings.HasPrefix(arg, "env.") {
+				return os.Getenv(arg[4:])
+			}
 
 			if v, ok := cmd.Vars[arg]; ok {
 				return v
