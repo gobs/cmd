@@ -328,18 +328,29 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 		fmt.Println("================================================================")
 
 		tp := pretty.NewTabPrinter(8)
-
 		for _, c := range cmd.commandNames {
 			tp.Print(c)
 		}
-
 		tp.Println()
+
+		if len(cmd.functionNames) > 0 {
+			fmt.Println()
+			fmt.Println("Available functions:")
+			fmt.Println("================================================================")
+
+			tp := pretty.NewTabPrinter(8)
+			for _, c := range cmd.functionNames {
+				tp.Print(c)
+			}
+			tp.Println()
+		}
 	} else {
-		c, ok := cmd.Commands[line]
-		if ok {
+		if c, ok := cmd.Commands[line]; ok {
 			c.HelpFunc()
+		} else if _, ok := cmd.functions[line]; ok {
+			fmt.Println(line, "is a function")
 		} else {
-			fmt.Println("unknown command")
+			fmt.Println("unknown command or function")
 		}
 	}
 
