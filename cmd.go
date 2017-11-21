@@ -270,25 +270,21 @@ func (cmd *Cmd) Init() {
 }
 
 //
-// Add a completer that matches on command/function names
-//
-func (cmd *Cmd) addCompleters() {
-	cmd.commandNames = make([]string, 0, len(cmd.Commands))
-	for name := range cmd.Commands {
-		cmd.commandNames = append(cmd.commandNames, name)
-	}
-	sort.Strings(cmd.commandNames) // for help listing
-
-	cmd.functionNames = []string{}
-
-	cmd.completer = NewCompleter(cmd.commandNames)
-	cmd.line.SetWordCompleter(cmd.wordCompleter)
-}
-
-//
 // Update function completer (when function list changes)
 //
 func (cmd *Cmd) updateCompleter() {
+	if cmd.completer == nil {
+		cmd.commandNames = make([]string, 0, len(cmd.Commands))
+		for name := range cmd.Commands {
+			cmd.commandNames = append(cmd.commandNames, name)
+		}
+		sort.Strings(cmd.commandNames) // for help listing
+
+		cmd.functionNames = []string{}
+
+		cmd.completer = NewCompleter(cmd.commandNames)
+	}
+
 	cmd.functionNames = cmd.functionNames[:0]
 	for name := range cmd.functions {
 		cmd.functionNames = append(cmd.functionNames, name)
@@ -661,7 +657,7 @@ func (cmd *Cmd) Load(line string) (stop bool) {
 	}()
 
 	for {
-		line, err = cmd.readLine("")
+		line, err = cmd.readLine("load")
 		if err != nil {
 			if err != io.EOF {
 				fmt.Println(err)
@@ -675,13 +671,13 @@ func (cmd *Cmd) Load(line string) (stop bool) {
 			continue
 		}
 
-		stop = cmd.OneCmd(line) || cmd.stop
-		if stop {
+		// fmt.Println("load-one", line)
+		if cmd.OneCmd(line) || cmd.stop {
 			break
 		}
 	}
 
-	return stop
+	return
 }
 
 // XXX: don't expand one-line body of "function" or "repeat"
@@ -721,11 +717,16 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 
 	var cname, params string
 
-	parts := strings.SplitN(line, " ", 2)
+	if strings.HasPrefix(line, "@") {
+		cname = "load"
+		params = strings.TrimSpace(line[1:])
+	} else {
+		parts := strings.SplitN(line, " ", 2)
 
-	cname = parts[0]
-	if len(parts) > 1 {
-		params = strings.TrimSpace(parts[1])
+		cname = parts[0]
+		if len(parts) > 1 {
+			params = strings.TrimSpace(parts[1])
+		}
 	}
 
 	if command, ok := cmd.Commands[cname]; ok {
@@ -751,15 +752,16 @@ func (cmd *Cmd) CmdLoop() {
 		cmd.ContinuationPrompt = ": "
 	}
 
+	cmd.updateCompleter()
+
 	if cmd.line == nil {
 		cmd.line = liner.NewLiner()
+		cmd.line.SetWordCompleter(cmd.wordCompleter)
+		cmd.readHistoryFile()
 	}
-
 	// cmd.line.SetCtrlCAborts(cmd.CtrlCAborts)
 
-	cmd.addCompleters()
 	cmd.PreLoop()
-	cmd.readHistoryFile()
 
 	defer func() {
 		if cmd.line != nil {
@@ -844,6 +846,7 @@ func (cmd *Cmd) readOneLine(prompt string) (line string, err error) {
 		line, err = cmd.line.Prompt(prompt)
 	}
 
+	// fmt.Printf("readOneLine:%v %q %v\n", prompt, line, err)
 	return
 }
 
@@ -864,7 +867,7 @@ func (cmd *Cmd) readLine(prompt string) (line string, err error) {
 
 		l, err := cmd.readOneLine(cmd.ContinuationPrompt)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, "continuation", err)
 			break
 		}
 
@@ -1045,10 +1048,10 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 func (cmd *Cmd) runBlock(name string, body []string, args []string) (stop bool) {
 	args = append([]string{name}, args...)
 	cmd.pushContext(nil, args)
-        prev := cmd.scanner
+	prev := cmd.scanner
 	cmd.scanner = &scanLines{body}
 	cmd.runLoop()
-        cmd.scanner = prev
+	cmd.scanner = prev
 	cmd.popContext()
 	return
 }
@@ -1081,13 +1084,14 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 			continue
 		}
 
-		if strings.HasSuffix(line, "{") {
-			opened += 1
-		} else if strings.HasPrefix(line, "}") {
+		if strings.HasPrefix(line, "}") {
 			opened -= 1
 			if opened <= 0 { // close first block
 				break
 			}
+		}
+		if strings.HasSuffix(line, "{") {
+			opened += 1
 		}
 
 		block1 = append(block1, line)
@@ -1126,13 +1130,14 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 			continue
 		}
 
-		if strings.HasSuffix(line, "{") {
-			opened += 1
-		} else if strings.HasPrefix(line, "}") {
+		if strings.HasPrefix(line, "}") {
 			opened -= 1
 			if opened <= 0 { // close second block
 				break
 			}
+		}
+		if strings.HasSuffix(line, "{") {
+			opened += 1
 		}
 
 		block2 = append(block2, line)
