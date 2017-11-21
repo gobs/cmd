@@ -5,9 +5,9 @@ import (
 	"github.com/gobs/cmd"
 
 	"fmt"
-        "os"
+	"os"
+	"strconv"
 	"strings"
-        "strconv"
 	"time"
 )
 
@@ -40,11 +40,11 @@ func main() {
 	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction, EnableShell: true}
 	commander.Init()
 
-        commander.Vars = map[string]string{
-                "user": "Bob",
-                "cwd": "/right/here",
-                "ret": "42",
-        }
+	commander.Vars = map[string]string{
+		"user": "Bob",
+		"cwd":  "/right/here",
+		"ret":  "42",
+	}
 
 	commander.Add(cmd.Command{
 		"ls",
@@ -59,11 +59,11 @@ func main() {
 		"sleep",
 		`sleep for a while`,
 		func(line string) (stop bool) {
-                        s := time.Second
+			s := time.Second
 
-                        if t, err := strconv.Atoi(line); err == nil {
-                            s *= time.Duration(t)
-                        }
+			if t, err := strconv.Atoi(line); err == nil {
+				s *= time.Duration(t)
+			}
 
 			fmt.Println("sleeping...")
 			time.Sleep(s)
@@ -103,10 +103,10 @@ func main() {
 		Exit,
 		nil})
 
-        if len(os.Args) > 1 {
-            cmd := strings.Join(os.Args[1:], " ")
-            commander.OneCmd(cmd)
-        }
+	if len(os.Args) > 1 {
+		cmd := strings.Join(os.Args[1:], " ")
+		commander.OneCmd(cmd)
+	}
 
 	commander.CmdLoop()
 }
