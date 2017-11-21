@@ -5,6 +5,7 @@ import (
 	"github.com/gobs/cmd"
 
 	"fmt"
+        "os"
 	"strings"
         "strconv"
 	"time"
@@ -101,6 +102,11 @@ func main() {
 		`terminate example`,
 		Exit,
 		nil})
+
+        if len(os.Args) > 1 {
+            cmd := strings.Join(os.Args[1:], " ")
+            commander.OneCmd(cmd)
+        }
 
 	commander.CmdLoop()
 }
