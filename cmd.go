@@ -91,6 +91,39 @@ func NewCompleter(words []string) (c *Completer) {
 }
 
 //
+// A basic scanner interface
+//
+type basicScanner interface {
+	Scan() bool
+	Text() string
+	Err() error
+}
+
+//
+// An implementation of basicScanner that works on a list of lines
+//
+type scanLines struct {
+	lines []string
+}
+
+func (s *scanLines) Scan() bool {
+	return len(s.lines) > 0
+}
+
+func (s *scanLines) Text() (text string) {
+	if len(s.lines) == 0 {
+		return
+	}
+
+	text, s.lines = s.lines[0], s.lines[1:]
+	return
+}
+
+func (s *scanLines) Err() (err error) {
+	return
+}
+
+//
 // This the the "context" for the command interpreter
 //
 type Cmd struct {
@@ -147,8 +180,8 @@ type Cmd struct {
 	Vars arguments
 
 	///////// private stuff /////////////
-	line          *liner.State   // interactive line reader
-	scanner       *bufio.Scanner // file based line reader
+	line          *liner.State // interactive line reader
+	scanner       basicScanner // file based line reader
 	completer     *Completer
 	commandNames  []string
 	functions     map[string][]string
@@ -620,10 +653,10 @@ func (cmd *Cmd) Load(line string) (stop bool) {
 		return
 	}
 
-	cmd.setScanner(f)
+	cmd.scanner = bufio.NewScanner(f)
 
 	defer func() {
-		cmd.setScanner(nil)
+		cmd.scanner = nil
 		f.Close()
 	}()
 
@@ -718,8 +751,9 @@ func (cmd *Cmd) CmdLoop() {
 		cmd.ContinuationPrompt = ": "
 	}
 
-	cmd.line = liner.NewLiner()
-	defer cmd.line.Close()
+	if cmd.line == nil {
+		cmd.line = liner.NewLiner()
+	}
 
 	// cmd.line.SetCtrlCAborts(cmd.CtrlCAborts)
 
@@ -760,6 +794,10 @@ func (cmd *Cmd) CmdLoop() {
 		}
 	}()
 
+	cmd.runLoop()
+}
+
+func (cmd *Cmd) runLoop() {
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
 		line, err := cmd.readLine(cmd.Prompt)
@@ -790,14 +828,6 @@ func (cmd *Cmd) CmdLoop() {
 		if stop {
 			break
 		}
-	}
-}
-
-func (cmd *Cmd) setScanner(r io.Reader) {
-	if r == nil {
-		cmd.scanner = nil
-	} else {
-		cmd.scanner = bufio.NewScanner(r)
 	}
 }
 
@@ -1015,19 +1045,10 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 func (cmd *Cmd) runBlock(name string, body []string, args []string) (stop bool) {
 	args = append([]string{name}, args...)
 	cmd.pushContext(nil, args)
-
-	for _, line := range body {
-		if strings.HasPrefix(line, "#") || line == "" {
-			cmd.EmptyLine()
-			continue
-		}
-
-		stop = cmd.OneCmd(line) || cmd.stop
-		if stop {
-			break
-		}
-	}
-
+        prev := cmd.scanner
+	cmd.scanner = &scanLines{body}
+	cmd.runLoop()
+        cmd.scanner = prev
 	cmd.popContext()
 	return
 }
@@ -1042,6 +1063,7 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 		return nil, nil, fmt.Errorf("unexpected body and block")
 	}
 
+	opened := 1
 	var block1, block2 []string
 	var line string
 	var err error
@@ -1059,8 +1081,13 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 			continue
 		}
 
-		if strings.HasPrefix(line, "}") { // close first block
-			break
+		if strings.HasSuffix(line, "{") {
+			opened += 1
+		} else if strings.HasPrefix(line, "}") {
+			opened -= 1
+			if opened <= 0 { // close first block
+				break
+			}
 		}
 
 		block1 = append(block1, line)
@@ -1084,6 +1111,8 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 		return nil, nil, fmt.Errorf("expected }, got %q", line)
 	}
 
+	opened = 1
+
 	for {
 
 		line, err = cmd.readLine(cmd.ContinuationPrompt)
@@ -1097,8 +1126,13 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 			continue
 		}
 
-		if strings.HasPrefix(line, "}") { // close first block
-			break
+		if strings.HasSuffix(line, "{") {
+			opened += 1
+		} else if strings.HasPrefix(line, "}") {
+			opened -= 1
+			if opened <= 0 { // close second block
+				break
+			}
 		}
 
 		block2 = append(block2, line)
