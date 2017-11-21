@@ -796,10 +796,10 @@ func (cmd *Cmd) CmdLoop() {
 		}
 	}()
 
-	cmd.runLoop()
+	cmd.runLoop(true)
 }
 
-func (cmd *Cmd) runLoop() {
+func (cmd *Cmd) runLoop(updateHistory bool) {
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
 		line, err := cmd.readLine(cmd.Prompt)
@@ -813,7 +813,7 @@ func (cmd *Cmd) runLoop() {
 			continue
 		}
 
-		if cmd.line != nil {
+		if cmd.line != nil && updateHistory {
 			cmd.line.AppendHistory(line) // allow user to recall this line
 		}
 
@@ -1050,7 +1050,7 @@ func (cmd *Cmd) runBlock(name string, body []string, args []string) (stop bool) 
 	cmd.pushContext(nil, args)
 	prev := cmd.scanner
 	cmd.scanner = &scanLines{body}
-	cmd.runLoop()
+	cmd.runLoop(false)
 	cmd.scanner = prev
 	cmd.popContext()
 	return
