@@ -662,7 +662,6 @@ func (cmd *Cmd) Load(line string) (stop bool) {
 			if err != io.EOF {
 				fmt.Println(err)
 			}
-
 			break
 		}
 
@@ -804,7 +803,9 @@ func (cmd *Cmd) runLoop(updateHistory bool) {
 	for {
 		line, err := cmd.readLine(cmd.Prompt)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			if err != io.EOF {
+				fmt.Println(err)
+			}
 			break
 		}
 
