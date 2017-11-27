@@ -132,4 +132,8 @@ All other conditionals are in the form: `(cond arguments...)`:
 
     (lte $var val)  # $var <= val
 
+    (startswith $var val) # $var starts with val
+    (endswith $var val)   # $var ends with val
+    (contains $var val)   # $var contains val
+
 As for variables, for now only string comparisons are supported.
