@@ -37,8 +37,9 @@ import (
 )
 
 var (
-	reArg = regexp.MustCompile(`\$(\w+|\(\w+\)|\(env.\w+\)|[\*#]|\([\*#]\))`)
-	sep   = string(0xFFFD) // unicode replacement char
+	reArg       = regexp.MustCompile(`\$(\w+|\(\w+\)|\(env.\w+\)|[\*#]|\([\*#]\))`) // $var or $(var)
+	reVarAssign = regexp.MustCompile(`([\d\w]+)(=(.*))?`)                           // name=value
+	sep         = string(0xFFFD)                                                    // unicode replacement char
 )
 
 type arguments = map[string]string
@@ -616,6 +617,7 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	options, line := args.GetOptions(line)
 
 	var quiet bool
+	var remove bool
 
 	prefix := "global"
 	vars := cmd.Vars
@@ -626,6 +628,8 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 		} else if op == "-l" || op == "--local" && cmd.getContext() != nil {
 			vars = cmd.getContext()
 			prefix = "local"
+		} else if op == "-r" || op == "-rm" || op == "--remove" {
+			remove = true
 		} else {
 			fmt.Printf("invalid option -%v\n", op)
 			return
@@ -647,6 +651,13 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	}
 
 	parts := args.GetArgsN(line, 2) // [ name, value ]
+	if len(parts) == 1 {            // see if it's name=value
+		matches := reVarAssign.FindStringSubmatch(line)
+		if len(matches) > 0 { // [name=var name =var var]
+			parts = []string{matches[1], matches[3]}
+		}
+	}
+
 	name := parts[0]
 
 	// var name value
@@ -658,8 +669,23 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	}
 
 	value, ok := vars[name]
+
+	if remove {
+		if ok {
+			delete(vars, name)
+
+			if !quiet {
+				fmt.Println(name, "removed")
+			}
+
+			return
+		}
+	}
+
 	if !ok {
-		fmt.Println("no", prefix, "variable", name)
+		if !quiet {
+			fmt.Println("no", prefix, "variable", name)
+		}
 	} else {
 		fmt.Println(name, "=", value)
 	}
