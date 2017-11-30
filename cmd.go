@@ -1174,7 +1174,10 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 }
 
 func (cmd *Cmd) runBlock(name string, body []string, args []string) (stop bool) {
-	args = append([]string{name}, args...)
+	if args != nil {
+		args = append([]string{name}, args...)
+	}
+
 	cmd.pushContext(nil, args)
 	prev := cmd.scanner
 	cmd.scanner = &scanLines{body}
