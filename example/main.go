@@ -76,7 +76,8 @@ func main() {
 		Name: ">",
 		Help: `Set prompt`,
 		Call: func(line string) (stop bool) {
-			commander.Prompt = line
+			// commander.Prompt = line  // set prompt
+			commander.SetPrompt(line, 20) // set prompt with max length of 20
 			return
 		}})
 

@@ -269,6 +269,17 @@ func (cmd *Cmd) Init() {
 	cmd.functions = make(map[string][]string)
 }
 
+func (cmd *Cmd) SetPrompt(prompt string, max int) {
+	l := len(prompt)
+
+	if max > 3 && l > max {
+		max -= 3 // for "..."
+		prompt = "..." + prompt[l-max:]
+	}
+
+	cmd.Prompt = prompt
+}
+
 // SetVar set a context variable (in cmd.Vars)
 func (cmd *Cmd) SetVar(name string, value interface{}) {
 	if value == nil {
