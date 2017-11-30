@@ -269,6 +269,36 @@ func (cmd *Cmd) Init() {
 	cmd.functions = make(map[string][]string)
 }
 
+// SetVar set a context variable (in cmd.Vars)
+func (cmd *Cmd) SetVar(name string, value interface{}) {
+	if value == nil {
+		if _, ok := cmd.Vars[name]; ok {
+			delete(cmd.Vars, name)
+		}
+		return
+	}
+
+	cmd.Vars[name] = fmt.Sprintf("%v", value)
+}
+
+// GetVar returns the value of the context variable (from cmd.Vars) as string
+func (cmd *Cmd) GetVar(name string) (val string) {
+	val = cmd.Vars[name]
+	return
+}
+
+// GetBoolVar returns the value of the context variable (from cmd.Vars) as bool
+func (cmd *Cmd) GetBoolVar(name string) (val bool) {
+	val, _ = strconv.ParseBool(cmd.Vars[name])
+	return
+}
+
+// GetIntVar returns the value of the context variable (from cmd.Vars) as int
+func (cmd *Cmd) GetIntVar(name string) (val int) {
+	val, _ = strconv.Atoi(cmd.Vars[name])
+	return
+}
+
 //
 // Update function completer (when function list changes)
 //
@@ -572,8 +602,21 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 }
 
 func (cmd *Cmd) Variable(line string) (stop bool) {
+	quiet := false
+
+	if strings.HasPrefix(line, "-q") { // quiet
+		quiet = true
+
+		parts := args.GetArgsN(line, 2) // [ -q rest ]
+		if len(parts) == 2 {
+			line = parts[1]
+		} else {
+			line = ""
+		}
+	}
+
 	// var
-	if line == "" {
+	if len(line) == 0 {
 		if len(cmd.Vars) == 0 {
 			fmt.Println("no variables")
 		} else {
@@ -586,12 +629,15 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 		return
 	}
 
-	parts := strings.SplitN(line, " ", 2)
+	parts := args.GetArgsN(line, 2) // [ name, value ]
 	name := parts[0]
 
 	// var name value
 	if len(parts) == 2 {
-		cmd.Vars[name] = strings.TrimSpace(parts[1])
+		cmd.Vars[name] = parts[1]
+		if quiet {
+			return
+		}
 	}
 
 	value, ok := cmd.Vars[name]
