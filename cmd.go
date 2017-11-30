@@ -616,29 +616,28 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	options, line := args.GetOptions(line)
 
 	var quiet bool
-	var vars arguments
+
+	prefix := "global"
+	vars := cmd.Vars
 
 	for _, op := range options {
 		if op == "-q" || op == "--quiet" {
 			quiet = true
-		} else if op == "-l" || op == "--local" {
+		} else if op == "-l" || op == "--local" && cmd.getContext() != nil {
 			vars = cmd.getContext()
+			prefix = "local"
 		} else {
 			fmt.Printf("invalid option -%v\n", op)
 			return
 		}
 	}
 
-	if vars == nil {
-		vars = cmd.Vars
-	}
-
 	// var
 	if len(line) == 0 {
 		if len(vars) == 0 {
-			fmt.Println("no variables")
+			fmt.Println("no", prefix, "variables")
 		} else {
-			fmt.Println("variables:")
+			fmt.Println(prefix, "variables:")
 			for k, v := range vars {
 				fmt.Println(" ", k, "=", v)
 			}
@@ -660,7 +659,7 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 
 	value, ok := vars[name]
 	if !ok {
-		fmt.Println("no variable", name)
+		fmt.Println("no", prefix, "variable", name)
 	} else {
 		fmt.Println(name, "=", value)
 	}
@@ -668,6 +667,13 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 }
 
 func (cmd *Cmd) Conditional(line string) (stop bool) {
+	negate := false
+
+	if strings.HasPrefix(line, "!") { // negate condition
+		negate = true
+		line = line[1:]
+	}
+
 	if len(line) == 0 {
 		fmt.Println("missing condition")
 		return
@@ -689,6 +695,10 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	if err != nil {
 		fmt.Println(err)
 		return true
+	}
+
+	if negate {
+		res = !res
 	}
 
 	if res {
