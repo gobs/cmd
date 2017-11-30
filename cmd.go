@@ -262,7 +262,7 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go, nil})
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat, nil})
 	cmd.Add(Command{"function", `function name body`, cmd.Function, nil})
-	cmd.Add(Command{"var", `var name value`, cmd.Variable, nil})
+	cmd.Add(Command{"var", `var [-l|--local] [-q|--quiet] name value`, cmd.Variable, nil})
 	cmd.Add(Command{"if", `if (condition) body`, cmd.Conditional, nil})
 	cmd.Add(Command{"load", `load script-file`, cmd.Load, nil})
 
@@ -602,26 +602,33 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 }
 
 func (cmd *Cmd) Variable(line string) (stop bool) {
-	quiet := false
+	options, line := args.GetOptions(line)
 
-	if strings.HasPrefix(line, "-q") { // quiet
-		quiet = true
+	var quiet bool
+	var vars arguments
 
-		parts := args.GetArgsN(line, 2) // [ -q rest ]
-		if len(parts) == 2 {
-			line = parts[1]
+	for _, op := range options {
+		if op == "-q" || op == "--quiet" {
+			quiet = true
+		} else if op == "-l" || op == "--local" {
+			vars = cmd.getContext()
 		} else {
-			line = ""
+			fmt.Printf("invalid option -%v\n", op)
+			return
 		}
+	}
+
+	if vars == nil {
+		vars = cmd.Vars
 	}
 
 	// var
 	if len(line) == 0 {
-		if len(cmd.Vars) == 0 {
+		if len(vars) == 0 {
 			fmt.Println("no variables")
 		} else {
 			fmt.Println("variables:")
-			for k, v := range cmd.Vars {
+			for k, v := range vars {
 				fmt.Println(" ", k, "=", v)
 			}
 		}
@@ -634,13 +641,13 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 
 	// var name value
 	if len(parts) == 2 {
-		cmd.Vars[name] = parts[1]
+		vars[name] = parts[1]
 		if quiet {
 			return
 		}
 	}
 
-	value, ok := cmd.Vars[name]
+	value, ok := vars[name]
 	if !ok {
 		fmt.Println("no variable", name)
 	} else {
@@ -951,6 +958,15 @@ func (cmd *Cmd) popContext() {
 	}
 
 	cmd.context = cmd.context[:l-1]
+}
+
+func (cmd *Cmd) getContext() arguments {
+	l := len(cmd.context)
+	if l == 0 {
+		return nil
+	}
+
+	return cmd.context[l-1]
 }
 
 func (cmd *Cmd) setContextVar(k, v string) {
