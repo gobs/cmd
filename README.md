@@ -84,6 +84,12 @@ Variables can be set/listed using the `var` command:
     echo $catch
         22
 
+To unset/remove a variable use:
+
+    var -r catch
+    var -rm catch
+    var --remove catch
+
 note that currently only "string" values are supported (i.e. `var x 1` is the same as `var x "1"1)
 
 Conditional flow with `if` and `else` commands:
@@ -135,5 +141,10 @@ All other conditionals are in the form: `(cond arguments...)`:
     (startswith $var val) # $var starts with val
     (endswith $var val)   # $var ends with val
     (contains $var val)   # $var contains val
+
+Conditions can also be negated with the "!" operator:
+
+    if !true echo "not true"
+    if !(contains $var val) echo val not in $var
 
 As for variables, for now only string comparisons are supported.
