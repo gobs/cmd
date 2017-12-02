@@ -263,7 +263,7 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.Go, nil})
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.Repeat, nil})
 	cmd.Add(Command{"function", `function name body`, cmd.Function, nil})
-	cmd.Add(Command{"var", `var [-l|--local] [-q|--quiet] name value`, cmd.Variable, nil})
+	cmd.Add(Command{"var", `var [-l|--local] [-q|--quiet] [-r|--remove] name value`, cmd.Variable, nil})
 	cmd.Add(Command{"if", `if (condition) body`, cmd.Conditional, nil})
 	cmd.Add(Command{"load", `load script-file`, cmd.Load, nil})
 
@@ -282,32 +282,47 @@ func (cmd *Cmd) SetPrompt(prompt string, max int) {
 }
 
 // SetVar set a context variable (in cmd.Vars)
-func (cmd *Cmd) SetVar(name string, value interface{}) {
+func (cmd *Cmd) SetVar(name string, value interface{}, local bool) {
+	vars := cmd.Vars
+
+	if local && cmd.getContext() != nil {
+		vars = cmd.getContext()
+	}
+
 	if value == nil {
-		if _, ok := cmd.Vars[name]; ok {
-			delete(cmd.Vars, name)
+		if _, ok := vars[name]; ok {
+			delete(vars, name)
 		}
 		return
 	}
 
-	cmd.Vars[name] = fmt.Sprintf("%v", value)
+	vars[name] = fmt.Sprintf("%v", value)
 }
 
 // GetVar returns the value of the context variable (from cmd.Vars) as string
-func (cmd *Cmd) GetVar(name string) (val string) {
-	val = cmd.Vars[name]
+func (cmd *Cmd) GetVar(name string, local bool) (val string) {
+	if local {
+		if v, ok := cmd.getContextVar(name); ok {
+			return v
+		}
+	}
+
+	if v, ok := cmd.Vars[name]; ok {
+		return v
+	}
+
 	return
 }
 
 // GetBoolVar returns the value of the context variable (from cmd.Vars) as bool
-func (cmd *Cmd) GetBoolVar(name string) (val bool) {
-	val, _ = strconv.ParseBool(cmd.Vars[name])
+func (cmd *Cmd) GetBoolVar(name string, local bool) (val bool) {
+	val, _ = strconv.ParseBool(cmd.GetVar(name, local))
 	return
 }
 
 // GetIntVar returns the value of the context variable (from cmd.Vars) as int
-func (cmd *Cmd) GetIntVar(name string) (val int) {
-	val, _ = strconv.Atoi(cmd.Vars[name])
+func (cmd *Cmd) GetIntVar(name string, local bool) (val int) {
+	val, _ = strconv.Atoi(cmd.GetVar(name, local))
 	return
 }
 
@@ -623,14 +638,20 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	vars := cmd.Vars
 
 	for _, op := range options {
-		if op == "-q" || op == "--quiet" {
+                switch op {
+                case "-q", "--quiet":
 			quiet = true
-		} else if op == "-l" || op == "--local" && cmd.getContext() != nil {
+
+                case "-l", "--local":
+                    if cmd.getContext() != nil {
 			vars = cmd.getContext()
 			prefix = "local"
-		} else if op == "-r" || op == "-rm" || op == "--remove" {
+                    }
+
+                case "-r", "-rm", "--remove":
 			remove = true
-		} else {
+
+                default:
 			fmt.Printf("invalid option -%v\n", op)
 			return
 		}
@@ -662,6 +683,9 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 
 	// var name value
 	if len(parts) == 2 {
+                if vars == nil {
+                    fmt.Println(prefix, "is nil")
+                }
 		vars[name] = parts[1]
 		if quiet {
 			return
@@ -1025,19 +1049,19 @@ func (cmd *Cmd) setContextVar(k, v string) {
 	cmd.context[l-1][k] = v
 }
 
-func (cmd *Cmd) getContextVar(k string) string {
+func (cmd *Cmd) getContextVar(k string) (string, bool) {
 	l := len(cmd.context)
 	if l == 0 {
-		return ""
+		return "", false
 	}
 
 	for i := len(cmd.context) - 1; i >= 0; i-- {
 		if v, ok := cmd.context[i][k]; ok {
-			return v
+			return v, true
 		}
 	}
 
-	return ""
+	return "", false
 }
 
 func (cmd *Cmd) expandVariables(line string) string {
@@ -1056,11 +1080,7 @@ func (cmd *Cmd) expandVariables(line string) string {
 				return os.Getenv(arg[4:])
 			}
 
-			if v, ok := cmd.Vars[arg]; ok {
-				return v
-			}
-
-			return cmd.getContextVar(arg)
+                        return cmd.GetVar(arg, true)
 		})
 
 		// fmt.Println("after expand:", line)
