@@ -23,6 +23,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -265,9 +267,12 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"function", `function name body`, cmd.Function, nil})
 	cmd.Add(Command{"var", `var [-l|--local] [-q|--quiet] [-r|--remove] name value`, cmd.Variable, nil})
 	cmd.Add(Command{"if", `if (condition) body`, cmd.Conditional, nil})
+	cmd.Add(Command{"expr", `expr operator operands...`, cmd.Expression, nil})
 	cmd.Add(Command{"load", `load script-file`, cmd.Load, nil})
 
 	cmd.functions = make(map[string][]string)
+
+	rand.Seed(time.Now().Unix())
 }
 
 func (cmd *Cmd) SetPrompt(prompt string, max int) {
@@ -638,20 +643,20 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 	vars := cmd.Vars
 
 	for _, op := range options {
-                switch op {
-                case "-q", "--quiet":
+		switch op {
+		case "-q", "--quiet":
 			quiet = true
 
-                case "-l", "--local":
-                    if cmd.getContext() != nil {
-			vars = cmd.getContext()
-			prefix = "local"
-                    }
+		case "-l", "--local":
+			if cmd.getContext() != nil {
+				vars = cmd.getContext()
+				prefix = "local"
+			}
 
-                case "-r", "-rm", "--remove":
+		case "-r", "-rm", "--remove":
 			remove = true
 
-                default:
+		default:
 			fmt.Printf("invalid option -%v\n", op)
 			return
 		}
@@ -683,9 +688,9 @@ func (cmd *Cmd) Variable(line string) (stop bool) {
 
 	// var name value
 	if len(parts) == 2 {
-                if vars == nil {
-                    fmt.Println(prefix, "is nil")
-                }
+		if vars == nil {
+			fmt.Println(prefix, "is nil")
+		}
 		vars[name] = parts[1]
 		if quiet {
 			return
@@ -760,6 +765,73 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	return
 }
 
+func (cmd *Cmd) Expression(line string) (stop bool) {
+	parts := args.GetArgsN(line, 2) // [ op, arg1 ]
+	if len(parts) != 2 {
+		fmt.Println("missing argument(s)")
+		return
+	}
+
+	op, line := parts[0], parts[1]
+
+	var res interface{}
+
+	switch op {
+	case "rand":
+		var neg bool
+		max, err := strconv.ParseInt(line, 10, 64)
+		if err != nil || max == 0 {
+			max = math.MaxInt64
+		} else if max < 0 {
+			neg = true
+			max = -max
+		}
+		r := rand.Int63n(max)
+		if neg {
+			r = -r
+		}
+		res = strconv.FormatInt(r, 10)
+
+	case "+", "-", "*", "/":
+		parts := args.GetArgs(line) // [ arg1, arg2 ]
+		if len(parts) != 2 {
+			fmt.Println("usage:", op, "arg1 arg2")
+			return
+		}
+
+		n1, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil {
+			fmt.Println("not a number:", parts[0])
+			return
+		}
+
+		n2, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			fmt.Println("not a number:", parts[1])
+			return
+		}
+
+		if op == "+" {
+			n1 += n2
+		} else if op == "-" {
+			n1 -= n2
+		} else if op == "*" {
+			n1 *= n2
+		} else if op == "/" {
+			n1 /= n2
+		}
+		res = strconv.FormatInt(n1, 10)
+
+	default:
+		fmt.Println("invalid operator:", op)
+		return
+	}
+
+	fmt.Println(res)
+	cmd.SetVar("result", res, false)
+	return
+}
+
 func (cmd *Cmd) Load(line string) (stop bool) {
 	if len(line) == 0 {
 		fmt.Println("missing script file")
@@ -829,7 +901,7 @@ func (cmd *Cmd) OneCmd(line string) (stop bool) {
 		line = cmd.expandVariables(line)
 	}
 
-	if echo, _ := strconv.ParseBool(cmd.Vars["echo"]); echo {
+	if cmd.GetBoolVar("echo", true) {
 		fmt.Println(cmd.Prompt, line)
 	}
 
@@ -1080,7 +1152,7 @@ func (cmd *Cmd) expandVariables(line string) string {
 				return os.Getenv(arg[4:])
 			}
 
-                        return cmd.GetVar(arg, true)
+			return cmd.GetVar(arg, true)
 		})
 
 		// fmt.Println("after expand:", line)
