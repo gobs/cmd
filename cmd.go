@@ -183,13 +183,14 @@ type Cmd struct {
 	Vars arguments
 
 	///////// private stuff /////////////
-	line          *liner.State // interactive line reader
-	scanner       basicScanner // file based line reader
-	completer     *Completer
-	commandNames  []string
-	functions     map[string][]string
-	functionNames []string
-	context       []arguments
+	line              *liner.State // interactive line reader
+	scanner           basicScanner // file based line reader
+	commandNames      []string
+	functions         map[string][]string
+	functionNames     []string
+	context           []arguments
+	commandCompleter  *Completer
+	functionCompleter *Completer
 
 	waitGroup          *sync.WaitGroup
 	waitMax, waitCount int
@@ -334,17 +335,20 @@ func (cmd *Cmd) GetIntVar(name string, local bool) (val int) {
 //
 // Update function completer (when function list changes)
 //
-func (cmd *Cmd) updateCompleter() {
-	if cmd.completer == nil {
+func (cmd *Cmd) updateCompleters() {
+	if cmd.commandCompleter == nil {
 		cmd.commandNames = make([]string, 0, len(cmd.Commands))
 		for name := range cmd.Commands {
 			cmd.commandNames = append(cmd.commandNames, name)
 		}
 		sort.Strings(cmd.commandNames) // for help listing
 
-		cmd.functionNames = []string{}
+		cmd.commandCompleter = NewCompleter(cmd.commandNames)
+	}
 
-		cmd.completer = NewCompleter(cmd.commandNames)
+	if cmd.functionCompleter == nil {
+		cmd.functionNames = []string{}
+		cmd.functionCompleter = NewCompleter(cmd.functionNames)
 	}
 
 	cmd.functionNames = cmd.functionNames[:0]
@@ -352,19 +356,22 @@ func (cmd *Cmd) updateCompleter() {
 		cmd.functionNames = append(cmd.functionNames, name)
 	}
 	sort.Strings(cmd.functionNames) // for function listing
+	cmd.functionCompleter.Words = cmd.functionNames
 
-	cmd.completer.Words = cmd.completer.Words[:0]
-	cmd.completer.Words = append(cmd.completer.Words, cmd.commandNames...)
-	cmd.completer.Words = append(cmd.completer.Words, cmd.functionNames...)
-	sort.Strings(cmd.completer.Words)
+	cmd.commandCompleter.Words = cmd.commandCompleter.Words[:0]
+	cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.commandNames...)
+	cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.functionNames...)
+	sort.Strings(cmd.commandCompleter.Words)
 }
 
 func (cmd *Cmd) wordCompleter(line string, pos int) (head string, completions []string, tail string) {
 	start := strings.LastIndex(line[:pos], " ")
 	if start < 0 { // this is the command to match
-		return "", cmd.completer.Complete(line), line[pos:]
+		return "", cmd.commandCompleter.Complete(line), line[pos:]
 	} else if strings.HasPrefix(line, "help ") {
-		return line[:start+1], cmd.completer.Complete(line[start+1:]), line[pos:]
+		return line[:start+1], cmd.commandCompleter.Complete(line[start+1:]), line[pos:]
+	} else if strings.HasPrefix(line, "function ") {
+		return line[:start+1], cmd.functionCompleter.Complete(line[start+1:]), line[pos:]
 	} else if cmd.Complete != nil {
 		return line[:start+1], cmd.Complete(line[start+1:], line), line[pos:]
 	} else {
@@ -613,7 +620,7 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 	if body == "--delete" {
 		if _, ok := cmd.functions[fname]; ok {
 			delete(cmd.functions, fname)
-			cmd.updateCompleter()
+			cmd.updateCompleters()
 			fmt.Println("function", fname, "deleted")
 		} else {
 			fmt.Println("no function", fname)
@@ -629,7 +636,7 @@ func (cmd *Cmd) Function(line string) (stop bool) {
 	}
 
 	cmd.functions[fname] = lines
-	cmd.updateCompleter()
+	cmd.updateCompleters()
 	return
 }
 
@@ -1048,7 +1055,7 @@ func (cmd *Cmd) CmdLoop() {
 		cmd.ContinuationPrompt = ": "
 	}
 
-	cmd.updateCompleter()
+	cmd.updateCompleters()
 
 	if cmd.line == nil {
 		cmd.line = liner.NewLiner()
