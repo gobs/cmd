@@ -765,6 +765,27 @@ func (cmd *Cmd) Conditional(line string) (stop bool) {
 	return
 }
 
+func parseInt64(v string) (int64, error) {
+	return strconv.ParseInt(v, 10, 64)
+}
+
+func parseInt(v string) (int, error) {
+	i, err := strconv.ParseInt(v, 10, 64)
+	return int(i), err
+}
+
+func parseFloat(v string) (float64, error) {
+	return strconv.ParseFloat(v, 64)
+}
+
+func intString(v int64, base int) string {
+	if base == 0 {
+		base = 10
+	}
+
+	return strconv.FormatInt(v, base)
+}
+
 func (cmd *Cmd) Expression(line string) (stop bool) {
 	parts := args.GetArgsN(line, 2) // [ op, arg1 ]
 	if len(parts) != 2 {
@@ -778,19 +799,42 @@ func (cmd *Cmd) Expression(line string) (stop bool) {
 
 	switch op {
 	case "rand":
-		var neg bool
-		max, err := strconv.ParseInt(line, 10, 64)
+		parts := args.GetArgs(line) // [ max, base ]
+		if len(parts) > 2 {
+			fmt.Println("usage: rand max [base]")
+			return
+		}
+
+		neg := false
+		base := 10
+
+		max, err := parseInt64(parts[0])
 		if err != nil || max == 0 {
 			max = math.MaxInt64
 		} else if max < 0 {
 			neg = true
 			max = -max
 		}
+
+		if len(parts) == 2 {
+			base, err = parseInt(parts[1])
+			if err != nil {
+				fmt.Println("base should be a number")
+				return
+			}
+
+			if base <= 0 {
+				base = 10
+			} else if base > 36 {
+				base = 36
+			}
+		}
+
 		r := rand.Int63n(max)
 		if neg {
 			r = -r
 		}
-		res = strconv.FormatInt(r, 10)
+		res = intString(r, base)
 
 	case "+", "-", "*", "/":
 		parts := args.GetArgs(line) // [ arg1, arg2 ]
@@ -799,13 +843,13 @@ func (cmd *Cmd) Expression(line string) (stop bool) {
 			return
 		}
 
-		n1, err := strconv.ParseInt(parts[0], 10, 64)
+		n1, err := parseInt64(parts[0])
 		if err != nil {
 			fmt.Println("not a number:", parts[0])
 			return
 		}
 
-		n2, err := strconv.ParseInt(parts[1], 10, 64)
+		n2, err := parseInt64(parts[1])
 		if err != nil {
 			fmt.Println("not a number:", parts[1])
 			return
@@ -820,7 +864,64 @@ func (cmd *Cmd) Expression(line string) (stop bool) {
 		} else if op == "/" {
 			n1 /= n2
 		}
-		res = strconv.FormatInt(n1, 10)
+		res = intString(n1, 10)
+
+	case "upper":
+		res = strings.ToUpper(line)
+
+	case "lower":
+		res = strings.ToLower(line)
+
+	case "substr":
+		parts := args.GetArgsN(line, 2) // [ start:end, line ]
+		if len(parts) == 0 {
+			fmt.Println("usage: substr start:end line")
+			return
+		}
+
+		if len(parts) == 1 { // empty line ?
+			line = ""
+		} else {
+			line = parts[1]
+		}
+
+		srange := parts[0]
+		var start, end int
+
+		if !strings.Contains(srange, ":") {
+			fmt.Println("expected start:end, got", srange)
+			return
+		}
+
+		parts = strings.Split(srange, ":")
+
+		start, _ = parseInt(parts[0])
+		if start < 0 {
+			start = len(line) + start
+		}
+		if start < 0 {
+			start = 0
+		} else if start > len(line) {
+			start = len(line)
+		}
+
+		if parts[1] == "" { // start:
+			end = len(line)
+		} else {
+			end, _ = parseInt(parts[1])
+		}
+
+		if end < 0 {
+			end = start + len(line) + end
+		}
+
+		if end < start {
+			end = start
+		} else if end > len(line) {
+			end = len(line)
+		}
+
+		res = line[start:end]
 
 	default:
 		fmt.Println("invalid operator:", op)
