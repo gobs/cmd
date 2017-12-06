@@ -1344,22 +1344,37 @@ func (cmd *Cmd) evalConditional(line string) (res bool, err error) {
 				res = args[0] <= args[1]
 			}
 		case "startswith":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = strings.HasPrefix(args[0], args[1])
+			switch nargs {
+			case 0:
+				err = fmt.Errorf("expected 2 argument, got 0")
+
+			case 1:
+				res = false
+
+			case 2:
+				res = strings.HasPrefix(args[1], args[0])
 			}
 		case "endswith":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = strings.HasSuffix(args[0], args[1])
+			switch nargs {
+			case 0:
+				err = fmt.Errorf("expected 2 argument, got 0")
+
+			case 1:
+				res = false
+
+			case 2:
+				res = strings.HasSuffix(args[1], args[0])
 			}
 		case "contains":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = strings.Contains(args[0], args[1])
+			switch nargs {
+			case 0:
+				err = fmt.Errorf("expected 2 argument, got 0")
+
+			case 1:
+				res = false
+
+			case 2:
+				res = strings.Contains(args[1], args[0])
 			}
 		default:
 			err = fmt.Errorf("invalid condition: %q", line)
