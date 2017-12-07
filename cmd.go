@@ -270,6 +270,7 @@ func (cmd *Cmd) Init() {
 	cmd.Add(Command{"if", `if (condition) body`, cmd.Conditional, nil})
 	cmd.Add(Command{"expr", `expr operator operands...`, cmd.Expression, nil})
 	cmd.Add(Command{"load", `load script-file`, cmd.Load, nil})
+	cmd.Add(Command{"exit", `exit program`, Exit, nil})
 
 	cmd.functions = make(map[string][]string)
 
@@ -1490,4 +1491,9 @@ func (cmd *Cmd) readBlock(body, next string) ([]string, []string, error) {
 	}
 
 	return block1, block2, nil
+}
+
+func Exit(line string) (stop bool) {
+	fmt.Println("goodbye!")
+	return true
 }
