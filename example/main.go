@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/gobs/args"
 	"github.com/gobs/cmd"
+	"github.com/gobs/cmd/plugins/json"
 
 	"fmt"
 	"os"
@@ -29,11 +30,6 @@ func CompletionFunction(text, line string) (matches []string) {
 	}
 
 	return
-}
-
-func Exit(line string) (stop bool) {
-	fmt.Println("goodbye!")
-	return true
 }
 
 func main() {
@@ -98,11 +94,7 @@ func main() {
 			return
 		}})
 
-	commander.Add(cmd.Command{
-		"exit",
-		`terminate example`,
-		Exit,
-		nil})
+        json.Init(commander)
 
 	if len(os.Args) > 1 {
 		cmd := strings.Join(os.Args[1:], " ")
@@ -110,4 +102,5 @@ func main() {
 	}
 
 	commander.CmdLoop()
+
 }
