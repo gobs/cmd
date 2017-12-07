@@ -4,8 +4,8 @@
 //
 //   json : creates a json object out of key/value pairs or lists
 //   jsonpath : parses a json object and extract specified fields
-//   format : pretty-print specified json object 
-// 
+//   format : pretty-print specified json object
+//
 package json
 
 import (
@@ -73,6 +73,16 @@ func unquote(s string) string {
 // Function PrintJson prints the specified object formatted as a JSON object
 func PrintJson(v interface{}) {
 	fmt.Println(simplejson.MustDumpString(v, simplejson.Indent("  ")))
+}
+
+// Function StringJson return the specified object as a JSON string
+func StringJson(v interface{}, unq bool) (ret string) {
+	ret = simplejson.MustDumpString(v)
+	if unq {
+		return unquote(ret)
+	}
+
+	return
 }
 
 // Function Init adds json-related commands to the specified "commander"
@@ -150,7 +160,7 @@ func Init(commander *cmd.Cmd) {
 			}
 
 			commander.Vars["error"] = ""
-			commander.Vars["json"] = unquote(simplejson.MustDumpString(res))
+			commander.Vars["json"] = StringJson(res, true)
 			return
 		},
 		nil})
@@ -203,7 +213,7 @@ func Init(commander *cmd.Cmd) {
 				PrintJson(res)
 			}
 			commander.Vars["error"] = ""
-			commander.Vars["json"] = unquote(simplejson.MustDumpString(res))
+			commander.Vars["json"] = StringJson(res, true)
 			return
 		},
 		nil})
