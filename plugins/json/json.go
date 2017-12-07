@@ -191,7 +191,7 @@ func Init(commander *cmd.Cmd) {
 			}
 
 			path := parts[0]
-			if !strings.HasPrefix(path, "$.") {
+			if !(strings.HasPrefix(path, "$.") || strings.HasPrefix(path, "$[")) {
 				path = "$." + path
 			}
 
