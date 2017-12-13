@@ -16,11 +16,20 @@ import (
 
 	"github.com/gobs/args"
 	"github.com/gobs/cmd"
+	"github.com/gobs/cmd/internal"
 	"github.com/gobs/jsonpath"
 	"github.com/gobs/simplejson"
 )
 
-var reFieldValue = regexp.MustCompile(`(\w[\d\w-]*)(=(.*))?`) // field-name=value
+type jsonPlugin struct {
+	cmd.Plugin
+}
+
+var (
+	Plugin = &jsonPlugin{}
+
+	reFieldValue = regexp.MustCompile(`(\w[\d\w-]*)(=(.*))?`) // field-name=value
+)
 
 func parseValue(v string) (interface{}, error) {
 	switch {
@@ -85,8 +94,11 @@ func StringJson(v interface{}, unq bool) (ret string) {
 	return
 }
 
-// Function Init adds json-related commands to the specified "commander"
-func Init(commander *cmd.Cmd) {
+//
+// PluginInit initialize this plugin
+//
+func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, context *internal.Context) error {
+
 	commander.Add(cmd.Command{"json",
 		`
                 json field1=value1 field2=value2...       // json object
@@ -100,7 +112,7 @@ func Init(commander *cmd.Cmd) {
 
 				if jbody, err := simplejson.LoadString(line); err != nil {
 					err = fmt.Errorf("error parsing object %q", line)
-					commander.Vars["error"] = err.Error()
+					context.SetVar("error", err, true)
 					fmt.Println(err)
 					return
 				} else {
@@ -121,7 +133,7 @@ func Init(commander *cmd.Cmd) {
 						v, err := parseValue(f)
 						if err != nil {
 							fmt.Println(err)
-							commander.Vars["error"] = err.Error()
+							context.SetVar("error", err, true)
 							return
 						}
 
@@ -142,12 +154,12 @@ func Init(commander *cmd.Cmd) {
 
 						if err != nil {
 							fmt.Println(err)
-							commander.Vars["error"] = err.Error()
+							context.SetVar("error", err, true)
 							return
 						}
 					} else {
 						fmt.Println("invalid name=value pair:", f)
-						commander.Vars["error"] = "invalid name=value pair"
+						context.SetVar("error", "invalid name=value pair", true)
 						return
 					}
 				}
@@ -155,12 +167,12 @@ func Init(commander *cmd.Cmd) {
 				res = mres
 			}
 
-			if commander.GetBoolVar("print", true) {
+			if context.GetBoolVar("print") {
 				PrintJson(res)
 			}
 
-			commander.Vars["error"] = ""
-			commander.Vars["json"] = StringJson(res, true)
+			context.SetVar("error", "", true)
+			context.SetVar("json", StringJson(res, true), true)
 			return
 		},
 		nil})
@@ -186,7 +198,7 @@ func Init(commander *cmd.Cmd) {
 			parts := args.GetArgsN(line, 2)
 			if len(parts) != 2 {
 				fmt.Println("use: jsonpath [-e|--enhanced] path {json}")
-				commander.Vars["error"] = "invalid-usage"
+				context.SetVar("error", "invalid-usage", true)
 				return
 			}
 
@@ -198,22 +210,22 @@ func Init(commander *cmd.Cmd) {
 			jbody, err := simplejson.LoadString(parts[1])
 			if err != nil {
 				fmt.Println("json:", err)
-				commander.Vars["error"] = err.Error()
+				context.SetVar("error", err, true)
 				return
 			}
 
 			jp := jsonpath.NewProcessor()
 			if !jp.Parse(path) {
-				commander.Vars["error"] = fmt.Sprintf("failed to parse %q", path)
+				context.SetVar("error", fmt.Sprintf("failed to parse %q", path), true)
 				return // syntax error
 			}
 
 			res := jp.Process(jbody, joptions)
-			if commander.GetBoolVar("print", true) {
+			if context.GetBoolVar("print") {
 				PrintJson(res)
 			}
-			commander.Vars["error"] = ""
-			commander.Vars["json"] = StringJson(res, true)
+			context.SetVar("error", "", true)
+			context.SetVar("json", StringJson(res, true), true)
 			return
 		},
 		nil})
@@ -225,7 +237,7 @@ func Init(commander *cmd.Cmd) {
 			jbody, err := simplejson.LoadString(line)
 			if err != nil {
 				fmt.Println("json:", err)
-				commander.Vars["error"] = err.Error()
+				context.SetVar("error", err, true)
 				return
 			}
 
@@ -233,4 +245,6 @@ func Init(commander *cmd.Cmd) {
 			return
 		},
 		nil})
+
+	return nil
 }

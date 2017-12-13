@@ -192,6 +192,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	}
 	cmd.context = internal.NewContext(cmd.HistoryFile)
 	cmd.context.SetWordCompleter(cmd.wordCompleter)
+	cmd.context.PushScope(nil, nil)
 
 	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, cmd.Help, nil})
@@ -558,7 +559,7 @@ func (cmd *Cmd) CmdLoop() {
 			p, _ := os.FindProcess(os.Getpid())
 			p.Signal(sig)
 		} else {
-			signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+			signal.Notify(sigc, os.Interrupt, sig)
 		}
 	}()
 

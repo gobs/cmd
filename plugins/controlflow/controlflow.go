@@ -16,7 +16,7 @@ import (
 	"github.com/gobs/cmd/internal"
 )
 
-type ControlFlow struct {
+type controlFlow struct {
 	cmd.Plugin
 
 	cmd *cmd.Cmd
@@ -29,13 +29,13 @@ type ControlFlow struct {
 }
 
 var (
-	Plugin = &ControlFlow{}
+	Plugin = &controlFlow{}
 
 	reArg       = regexp.MustCompile(`\$(\w+|\(\w+\)|\(env.\w+\)|[\*#]|\([\*#]\))`) // $var or $(var)
 	reVarAssign = regexp.MustCompile(`([\d\w]+)(=(.*))?`)                           // name=value
 )
 
-func (cf *ControlFlow) command_function(line string) (stop bool) {
+func (cf *controlFlow) command_function(line string) (stop bool) {
 	// function
 	if line == "" {
 		if len(cf.functions) == 0 {
@@ -91,7 +91,7 @@ func (cf *ControlFlow) command_function(line string) (stop bool) {
 	return
 }
 
-func (cf *ControlFlow) command_variable(line string) (stop bool) {
+func (cf *controlFlow) command_variable(line string) (stop bool) {
 	options, line := args.GetOptions(line)
 
 	var quiet bool
@@ -179,7 +179,7 @@ func (cf *ControlFlow) command_variable(line string) (stop bool) {
 	return
 }
 
-func (cf *ControlFlow) expandVariables(line string) string {
+func (cf *controlFlow) expandVariables(line string) string {
 	for {
 		// fmt.Println("before expand:", line)
 		found := false
@@ -208,7 +208,7 @@ func (cf *ControlFlow) expandVariables(line string) string {
 	return line
 }
 
-func (cf *ControlFlow) command_conditional(line string) (stop bool) {
+func (cf *controlFlow) command_conditional(line string) (stop bool) {
 	negate := false
 
 	if strings.HasPrefix(line, "!") { // negate condition
@@ -252,7 +252,7 @@ func (cf *ControlFlow) command_conditional(line string) (stop bool) {
 	return
 }
 
-func (cf *ControlFlow) evalConditional(line string) (res bool, err error) {
+func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 	if strings.HasPrefix(line, "(") && strings.HasSuffix(line, ")") { // (condition arg1 arg2...)
 		line = strings.TrimPrefix(line, "(")
 		line = strings.TrimSuffix(line, ")")
@@ -389,7 +389,7 @@ func intString(v int64, base int) string {
 	return strconv.FormatInt(v, base)
 }
 
-func (cf *ControlFlow) command_expression(line string) (stop bool) {
+func (cf *controlFlow) command_expression(line string) (stop bool) {
 	parts := args.GetArgsN(line, 2) // [ op, arg1 ]
 	if len(parts) != 2 {
 		fmt.Println("missing argument(s)")
@@ -536,7 +536,7 @@ func (cf *ControlFlow) command_expression(line string) (stop bool) {
 	return
 }
 
-func (cf *ControlFlow) command_load(line string) (stop bool) {
+func (cf *controlFlow) command_load(line string) (stop bool) {
 	if len(line) == 0 {
 		fmt.Println("missing script file")
 		return
@@ -590,7 +590,7 @@ func canExpand(line string) bool {
 	return true
 }
 
-func (cf *ControlFlow) runFunction(line string) bool {
+func (cf *controlFlow) runFunction(line string) bool {
 	if canExpand(line) {
 		line = cf.expandVariables(line)
 	}
@@ -620,7 +620,7 @@ func (cf *ControlFlow) runFunction(line string) bool {
 //
 // PluginInit initialize this plugin
 //
-func (cf *ControlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
+func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	if cf.cmd != nil {
 		return nil // already initialized
 	}

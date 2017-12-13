@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/gobs/args"
 	"github.com/gobs/cmd"
-	//"github.com/gobs/cmd/plugins/json"
 	"github.com/gobs/cmd/plugins/controlflow"
+	"github.com/gobs/cmd/plugins/json"
 
 	"fmt"
 	"os"
@@ -35,7 +35,7 @@ func CompletionFunction(text, line string) (matches []string) {
 
 func main() {
 	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction, EnableShell: true}
-	commander.Init(controlflow.Plugin)
+	commander.Init(controlflow.Plugin, json.Plugin)
 
 	/*
 		commander.Vars = map[string]string{
