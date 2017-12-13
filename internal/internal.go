@@ -26,7 +26,6 @@ func NewContext(history string) *Context {
 	ctx := &Context{}
 
 	ctx.line = liner.NewLiner()
-	// ctx.line.SetWordCompleter(cmd.wordCompleter) TODO: enabled wordCompleter
 	ctx.readHistoryFile(history)
 	ctx.ScanLiner()
 	return ctx
@@ -42,6 +41,12 @@ func (ctx *Context) Close() {
 func (ctx *Context) UpdateHistory(line string) {
 	if ctx.line != nil {
 		ctx.line.AppendHistory(line)
+	}
+}
+
+func (ctx *Context) SetWordCompleter(completer func(line string, pos int) (head string, completions []string, tail string)) {
+	if ctx.line != nil {
+		ctx.line.SetWordCompleter(completer)
 	}
 }
 

@@ -191,7 +191,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 		cmd.Interrupt = func(sig os.Signal) bool { return true }
 	}
 	cmd.context = internal.NewContext(cmd.HistoryFile)
-	//cmd.context.SetWordCompleter(cmd.wordCompleter)
+	cmd.context.SetWordCompleter(cmd.wordCompleter)
 
 	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, cmd.Help, nil})
