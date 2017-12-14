@@ -294,22 +294,11 @@ func (cmd *Cmd) wordCompleter(line string, pos int) (head string, completions []
 		}
 	}
 
-	return
+	if cmd.Complete != nil {
+		return line[:start+1], cmd.Complete(line[start+1:], line), line[pos:]
+	}
 
-	/*
-		start := strings.LastIndex(line[:pos], " ")
-		if start < 0 { // this is the command to match
-			return "", cmd.commandCompleter.Complete(line, line), line[pos:]
-		} else if strings.HasPrefix(line, "help ") {
-			return line[:start+1], cmd.commandCompleter.Complete(line[start+1:], line), line[pos:]
-			//} else if strings.HasPrefix(line, "function ") {
-			//	return line[:start+1], cmd.functionCompleter.Complete(line[start+1:], line), line[pos:]
-		} else if cmd.Complete != nil {
-			return line[:start+1], cmd.Complete(line[start+1:], line), line[pos:]
-		} else {
-			return
-		}
-	*/
+	return
 }
 
 func (cmd *Cmd) AddCompleter(name string, c Completer) {
