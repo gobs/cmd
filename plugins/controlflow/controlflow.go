@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,23 @@ var (
 	reArg       = regexp.MustCompile(`\$(\w+|\(\w+\)|\(env.\w+\)|[\*#]|\([\*#]\))`) // $var or $(var)
 	reVarAssign = regexp.MustCompile(`([\d\w]+)(=(.*))?`)                           // name=value
 )
+
+func (cf *controlFlow) updateCompleter() {
+	cf.functionNames = cf.functionNames[:0]
+	for name := range cf.functions {
+		cf.functionNames = append(cf.functionNames, name)
+	}
+	sort.Strings(cf.functionNames)
+
+	c := cf.cmd.GetCompleter("function")
+	if c == nil {
+		cf.cmd.AddCompleter("function", cmd.NewWordCompleter(cf.functionNames, func(s, l string) bool {
+			return strings.HasPrefix(l, "function ")
+		}))
+	} else {
+		c.(*cmd.WordCompleter).Words = cf.functionNames
+	}
+}
 
 func (cf *controlFlow) command_function(line string) (stop bool) {
 	// function
@@ -71,8 +89,9 @@ func (cf *controlFlow) command_function(line string) (stop bool) {
 	if body == "--delete" {
 		if _, ok := cf.functions[fname]; ok {
 			delete(cf.functions, fname)
-			//cf.cmd.updateCompleters()
 			fmt.Println("function", fname, "deleted")
+
+			cf.updateCompleter()
 		} else {
 			fmt.Println("no function", fname)
 		}
@@ -87,7 +106,7 @@ func (cf *controlFlow) command_function(line string) (stop bool) {
 	}
 
 	cf.functions[fname] = lines
-	//cf.cmd.updateCompleters()
+	cf.updateCompleter()
 	return
 }
 
@@ -630,6 +649,7 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	cf.cmd, cf.ctx = c, ctx
 	cf.runCmd, c.OneCmd = c.OneCmd, cf.runFunction
 	cf.functions = make(map[string][]string)
+	cf.functionNames = make([]string, 0)
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
 	c.Add(cmd.Command{"var", `var [-l|--local] [-q|--quiet] [-r|--remove] name value`, cf.command_variable, nil})

@@ -64,17 +64,34 @@ func (c *Command) DefaultHelp() {
 	}
 }
 
+type Completer interface {
+	Complete(string, string) []string // Complete(start, full-line) returns matches
+}
+
+type linkedCompleter struct {
+	name      string
+	completer Completer
+	next      *linkedCompleter
+}
+
+type CompleterCond func(start, line string) bool
+
 //
 // The context for command completion
 //
-type Completer struct {
+type WordCompleter struct {
 	// the list of words to match on
 	Words []string
+	Cond  CompleterCond
 }
 
-func (c *Completer) Complete(line string) (matches []string) {
+func (c *WordCompleter) Complete(start, line string) (matches []string) {
+	if c.Cond != nil && c.Cond(start, line) == false {
+		return
+	}
+
 	for _, w := range c.Words {
-		if strings.HasPrefix(w, line) {
+		if strings.HasPrefix(w, start) {
 			matches = append(matches, w)
 		}
 	}
@@ -83,10 +100,10 @@ func (c *Completer) Complete(line string) (matches []string) {
 }
 
 //
-// Create a Completer and initialize with list of words
+// Create a WordCompleter and initialize with list of words
 //
-func NewCompleter(words []string) (c *Completer) {
-	return &Completer{Words: words}
+func NewWordCompleter(words []string, cond CompleterCond) *WordCompleter {
+	return &WordCompleter{Words: words, Cond: cond}
 }
 
 //
@@ -152,9 +169,11 @@ type Cmd struct {
 	Interrupted bool
 
 	///////// private stuff /////////////
+	completers *linkedCompleter
+
 	commandNames      []string
-	commandCompleter  *Completer
-	functionCompleter *Completer
+	commandCompleter  *WordCompleter
+	functionCompleter *WordCompleter
 
 	waitGroup          *sync.WaitGroup
 	waitMax, waitCount int
@@ -230,48 +249,82 @@ func (cmd *Cmd) SetPrompt(prompt string, max int) {
 // Update function completer (when function list changes)
 //
 func (cmd *Cmd) updateCompleters() {
-	if cmd.commandCompleter == nil {
+	if c := cmd.GetCompleter(""); c == nil { // default completer
 		cmd.commandNames = make([]string, 0, len(cmd.Commands))
 		for name := range cmd.Commands {
 			cmd.commandNames = append(cmd.commandNames, name)
 		}
 		sort.Strings(cmd.commandNames) // for help listing
 
-		cmd.commandCompleter = NewCompleter(cmd.commandNames)
+		cmd.AddCompleter("", NewWordCompleter(cmd.commandNames, func(s, l string) bool {
+			return s == l // check if we are at the beginning of the line
+		}))
+
+		cmd.AddCompleter("help", NewWordCompleter(cmd.commandNames, func(s, l string) bool {
+			return strings.HasPrefix(l, "help ")
+		}))
 	}
 
 	/*
-		if cmd.functionCompleter == nil {
-			cmd.functionNames = []string{}
-			cmd.functionCompleter = NewCompleter(cmd.functionNames)
-		}
+				if cmd.functionCompleter == nil {
+					cmd.functionNames = []string{}
+					cmd.functionCompleter = NewCompleter(cmd.functionNames)
+				}
 
-		cmd.functionNames = cmd.functionNames[:0]
-		for name := range cmd.functions {
-			cmd.functionNames = append(cmd.functionNames, name)
-		}
-		sort.Strings(cmd.functionNames) // for function listing
-		cmd.functionCompleter.Words = cmd.functionNames
+				cmd.functionNames = cmd.functionNames[:0]
+				for name := range cmd.functions {
+					cmd.functionNames = append(cmd.functionNames, name)
+				}
+				sort.Strings(cmd.functionNames) // for function listing
+				cmd.functionCompleter.Words = cmd.functionNames
+
+		                cmd.commandCompleter.Words = cmd.commandCompleter.Words[:0]
+		                cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.commandNames...)
+		                //cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.functionNames...)
+		                sort.Strings(cmd.commandCompleter.Words)
 	*/
-	cmd.commandCompleter.Words = cmd.commandCompleter.Words[:0]
-	cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.commandNames...)
-	//cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.functionNames...)
-	sort.Strings(cmd.commandCompleter.Words)
 }
 
 func (cmd *Cmd) wordCompleter(line string, pos int) (head string, completions []string, tail string) {
 	start := strings.LastIndex(line[:pos], " ")
-	if start < 0 { // this is the command to match
-		return "", cmd.commandCompleter.Complete(line), line[pos:]
-	} else if strings.HasPrefix(line, "help ") {
-		return line[:start+1], cmd.commandCompleter.Complete(line[start+1:]), line[pos:]
-		//} else if strings.HasPrefix(line, "function ") {
-		//	return line[:start+1], cmd.functionCompleter.Complete(line[start+1:]), line[pos:]
-	} else if cmd.Complete != nil {
-		return line[:start+1], cmd.Complete(line[start+1:], line), line[pos:]
-	} else {
-		return
+
+	for c := cmd.completers; c != nil; c = c.next {
+		if completions = c.completer.Complete(line[start+1:], line); completions != nil {
+			return line[:start+1], completions, line[pos:]
+		}
 	}
+
+	return
+
+	/*
+		start := strings.LastIndex(line[:pos], " ")
+		if start < 0 { // this is the command to match
+			return "", cmd.commandCompleter.Complete(line, line), line[pos:]
+		} else if strings.HasPrefix(line, "help ") {
+			return line[:start+1], cmd.commandCompleter.Complete(line[start+1:], line), line[pos:]
+			//} else if strings.HasPrefix(line, "function ") {
+			//	return line[:start+1], cmd.functionCompleter.Complete(line[start+1:], line), line[pos:]
+		} else if cmd.Complete != nil {
+			return line[:start+1], cmd.Complete(line[start+1:], line), line[pos:]
+		} else {
+			return
+		}
+	*/
+}
+
+func (cmd *Cmd) AddCompleter(name string, c Completer) {
+	lc := &linkedCompleter{name: name, completer: c, next: cmd.completers}
+	cmd.completers = lc
+}
+
+func (cmd *Cmd) GetCompleter(name string) Completer {
+	for c := cmd.completers; c != nil; c = c.next {
+		if c.name == name {
+			return c.completer
+		}
+	}
+
+	return nil
 }
 
 //
