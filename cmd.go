@@ -504,10 +504,11 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 		return
 	}
 
-	cmd.context.PushScope(arguments{"count": strconv.FormatUint(count, 10)}, nil)
+	cmd.context.PushScope(nil, nil)
+	cmd.context.SetVar("count", count, false)
 
 	for i := uint64(1); i <= count; i++ {
-		cmd.context.SetVar("index", strconv.FormatUint(i, 10), false)
+		cmd.context.SetVar("index", i, false)
 		stop = cmd.RunBlock("", block, nil) || cmd.Interrupted
 		if stop {
 			break
@@ -641,6 +642,12 @@ func (cmd *Cmd) runLoop(updateHistory bool) {
 	}
 }
 
+//
+// RunBlock runs a block of code.
+//
+// Note: this is public because it's needed by the ControlFlow plugin (and can't be in interal
+// because of circular dependencies). It shouldn't be used by end-user applications.
+//
 func (cmd *Cmd) RunBlock(name string, body []string, args []string) (stop bool) {
 	if args != nil {
 		args = append([]string{name}, args...)
@@ -651,5 +658,37 @@ func (cmd *Cmd) RunBlock(name string, body []string, args []string) (stop bool) 
 	cmd.runLoop(false)
 	cmd.context.PopScope()
 	cmd.context.SetScanner(prev)
+	return
+}
+
+//
+// SetVar sets a variable in the current or global scope
+//
+func (cmd *Cmd) SetVar(k string, v interface{}, global bool) {
+	cmd.context.SetVar(k, v, global)
+}
+
+//
+// GetVar return the value of the specified variable from the closest scope
+//
+func (cmd *Cmd) GetVar(k string) (string, bool) {
+	return cmd.context.GetVar(k)
+}
+
+//
+// GetBoolVar returns the value of the variable as boolean
+//
+func (cmd *Cmd) GetBoolVar(name string) (val bool) {
+	sval, _ := cmd.context.GetVar(name)
+	val, _ = strconv.ParseBool(sval)
+	return
+}
+
+//
+// GetIntVar returns the value of the variable as int
+//
+func (cmd *Cmd) GetIntVar(name string, global bool) (val int) {
+	sval, _ := cmd.context.GetVar(name)
+	val, _ = strconv.Atoi(sval)
 	return
 }

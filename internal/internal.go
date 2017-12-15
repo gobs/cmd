@@ -164,24 +164,6 @@ func (ctx *Context) GetVar(k string) (string, bool) {
 }
 
 //
-// GetBoolVar returns the value of the variable as boolean
-//
-func (ctx *Context) GetBoolVar(name string) (val bool) {
-	sval, _ := ctx.GetVar(name)
-	val, _ = strconv.ParseBool(sval)
-	return
-}
-
-//
-// GetIntVar returns the value of the variable as int:w
-//
-func (ctx *Context) GetIntVar(name string, global bool) (val int) {
-	sval, _ := ctx.GetVar(name)
-	val, _ = strconv.Atoi(sval)
-	return
-}
-
-//
 // A basic scanner interface
 //
 type BasicScanner interface {

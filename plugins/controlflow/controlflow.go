@@ -551,7 +551,7 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 	}
 
 	fmt.Println(res)
-	cf.ctx.SetVar("result", res, true)
+	cf.cmd.SetVar("result", res, true)
 	return
 }
 
@@ -614,7 +614,7 @@ func (cf *controlFlow) runFunction(line string) bool {
 		line = cf.expandVariables(line)
 	}
 
-	if cf.ctx.GetBoolVar("echo") {
+	if cf.cmd.GetBoolVar("echo") {
 		fmt.Println(cf.cmd.Prompt, line)
 	}
 
