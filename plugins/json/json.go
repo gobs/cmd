@@ -72,7 +72,8 @@ func parseValue(v string) (interface{}, error) {
 }
 
 func unquote(s string) string {
-	if res, err := strconv.Unquote(strings.TrimSpace(s)); err == nil {
+	s = strings.TrimSpace(s)
+	if res, err := strconv.Unquote(s); err == nil {
 		return res
 	}
 
