@@ -17,7 +17,6 @@ package cmd
 import (
 	"github.com/gobs/args"
 	"github.com/gobs/cmd/internal"
-	//"github.com/gobs/cmd/plugins"
 	"github.com/gobs/pretty"
 
 	"fmt"
