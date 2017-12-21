@@ -146,7 +146,7 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 		} else {
 			fmt.Println(prefix, "variables:")
 			for k, v := range vars {
-				fmt.Println(" ", k, "=", v)
+				fmt.Printf("%q=%q\n", k, v)
 			}
 		}
 
