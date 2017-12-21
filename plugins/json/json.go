@@ -31,6 +31,19 @@ var (
 	reFieldValue = regexp.MustCompile(`(\w[\d\w-]*)(=(.*))?`) // field-name=value
 )
 
+func unquote(s string, q byte) (string, error) {
+	l := len(s)
+	if l == 1 {
+		return s, fmt.Errorf("tooshort")
+	}
+
+	if s[l-1] == q {
+		return s[1 : l-1], nil
+	}
+
+	return s, fmt.Errorf("unbalanced")
+}
+
 func parseValue(v string) (interface{}, error) {
 	switch {
 	case strings.HasPrefix(v, "{") || strings.HasPrefix(v, "["):
@@ -42,10 +55,10 @@ func parseValue(v string) (interface{}, error) {
 		}
 
 	case strings.HasPrefix(v, `"`):
-		return strings.Trim(v, `"`), nil
+		return unquote(v, '"')
 
 	case strings.HasPrefix(v, `'`):
-		return strings.Trim(v, `'`), nil
+		return unquote(v, '\'')
 
 	case v == "":
 		return v, nil
@@ -71,15 +84,6 @@ func parseValue(v string) (interface{}, error) {
 	}
 }
 
-func unquote(s string) string {
-	s = strings.TrimSpace(s)
-	if res, err := strconv.Unquote(s); err == nil {
-		return res
-	}
-
-	return s
-}
-
 // Function PrintJson prints the specified object formatted as a JSON object
 func PrintJson(v interface{}) {
 	fmt.Println(simplejson.MustDumpString(v, simplejson.Indent("  ")))
@@ -89,7 +93,7 @@ func PrintJson(v interface{}) {
 func StringJson(v interface{}, unq bool) (ret string) {
 	ret = simplejson.MustDumpString(v)
 	if unq {
-		return unquote(ret)
+		ret, _ = unquote(strings.TrimSpace(ret), '"')
 	}
 
 	return
@@ -237,7 +241,8 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 		func(line string) (stop bool) {
 			jbody, err := simplejson.LoadString(line)
 			if err != nil {
-				fmt.Println("json:", err)
+				fmt.Println("format:", err)
+				fmt.Println("input:", line)
 				commander.SetVar("error", err, true)
 				return
 			}
