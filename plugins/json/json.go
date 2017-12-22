@@ -60,6 +60,9 @@ func parseValue(v string) (interface{}, error) {
 	case strings.HasPrefix(v, `'`):
 		return unquote(v, '\'')
 
+	case strings.HasPrefix(v, "`"):
+		return unquote(v, '`')
+
 	case v == "":
 		return v, nil
 
