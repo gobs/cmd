@@ -608,7 +608,7 @@ func (cmd *Cmd) CmdLoop() {
 	cmd.runLoop(true)
 }
 
-func (cmd *Cmd) runLoop(updateHistory bool) {
+func (cmd *Cmd) runLoop(updateHistory bool) (stop bool) {
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
 		line, err := cmd.context.ReadLine(cmd.Prompt, cmd.ContinuationPrompt)
@@ -631,7 +631,7 @@ func (cmd *Cmd) runLoop(updateHistory bool) {
 		m := cmd.context.TerminalMode()
 
 		cmd.PreCmd(line)
-		stop := cmd.OneCmd(line)
+		stop = cmd.OneCmd(line)
 		stop = cmd.PostCmd(line, stop) || cmd.Interrupted
 
 		cmd.context.RestoreMode(m)
@@ -639,6 +639,8 @@ func (cmd *Cmd) runLoop(updateHistory bool) {
 			break
 		}
 	}
+
+	return
 }
 
 //
@@ -654,9 +656,14 @@ func (cmd *Cmd) RunBlock(name string, body []string, args []string) (stop bool) 
 
 	prev := cmd.context.ScanBlock(body)
 	cmd.context.PushScope(nil, args)
-	cmd.runLoop(false)
+	shouldStop := cmd.runLoop(false)
 	cmd.context.PopScope()
 	cmd.context.SetScanner(prev)
+
+	if name == "" { // if stop is called in an unamed block (i.e. not a function) we should really stop
+		stop = shouldStop
+	}
+
 	return
 }
 

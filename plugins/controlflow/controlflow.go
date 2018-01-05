@@ -598,6 +598,10 @@ func (cf *controlFlow) command_load(line string) (stop bool) {
 	return
 }
 
+func (cf *controlFlow) command_stop(_o string) (stop bool) {
+	return true
+}
+
 // XXX: don't expand one-line body of "function" or "repeat"
 func canExpand(line string) bool {
 	if strings.HasPrefix(line, "function ") {
@@ -656,5 +660,6 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	c.Add(cmd.Command{"if", `if (condition) body`, cf.command_conditional, nil})
 	c.Add(cmd.Command{"expr", `expr operator operands...`, cf.command_expression, nil})
 	c.Add(cmd.Command{"load", `load script-file`, cf.command_load, nil})
+	c.Add(cmd.Command{"stop", `stop function or block`, cf.command_stop, nil})
 	return nil
 }
