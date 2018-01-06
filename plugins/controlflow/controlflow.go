@@ -271,6 +271,31 @@ func (cf *controlFlow) command_conditional(line string) (stop bool) {
 	return
 }
 
+func compare(args []string, num bool) (int, error) {
+	l := len(args)
+
+	if l > 2 || (num && l != 2) {
+		return 0, fmt.Errorf("expected 2 arguments, got %v", len(args))
+	}
+
+	var arg1, arg2 string
+
+	if l > 0 {
+		arg1 = args[0]
+	}
+	if l > 1 {
+		arg2 = args[1]
+	}
+
+	if num {
+		n1, _ := parseInt(arg1)
+		n2, _ := parseInt(arg2)
+		return n1 - n2, nil
+	} else {
+		return strings.Compare(arg1, arg2), nil
+	}
+}
+
 func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 	if strings.HasPrefix(line, "(") && strings.HasSuffix(line, ")") { // (condition arg1 arg2...)
 		line = strings.TrimPrefix(line, "(")
@@ -282,6 +307,8 @@ func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 
 		cond, args := args[0], args[1:]
 		nargs := len(args)
+
+		var cres int
 
 		switch cond {
 		case "z":
@@ -307,41 +334,41 @@ func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 				err = fmt.Errorf("expected 1 argument, got %v", nargs)
 			}
 		case "eq":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = args[0] == args[1]
-			}
+			cres, err = compare(args, false)
+			res = cres == 0
 		case "ne":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = args[0] != args[1]
-			}
+			cres, err = compare(args, false)
+			res = cres != 0
 		case "gt":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = args[0] > args[1]
-			}
+			cres, err = compare(args, false)
+			res = cres > 0
 		case "gte":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = args[0] >= args[1]
-			}
+			cres, err = compare(args, false)
+			res = cres >= 0
 		case "lt":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = args[0] < args[1]
-			}
+			cres, err = compare(args, false)
+			res = cres < 0
 		case "lte":
-			if nargs != 2 {
-				err = fmt.Errorf("expected 2 argument, got %v", nargs)
-			} else {
-				res = args[0] <= args[1]
-			}
+			cres, err = compare(args, false)
+			res = cres <= 0
+		case "eq#":
+			cres, err = compare(args, true)
+			res = cres == 0
+		case "ne#":
+			cres, err = compare(args, true)
+			res = cres != 0
+		case "gt#":
+			cres, err = compare(args, true)
+			res = cres > 0
+		case "gte#":
+			cres, err = compare(args, true)
+			res = cres >= 0
+		case "lt#":
+			cres, err = compare(args, true)
+			res = cres < 0
+		case "lte#":
+			cres, err = compare(args, true)
+			res = cres <= 0
 		case "startswith":
 			switch nargs {
 			case 0:
