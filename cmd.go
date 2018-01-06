@@ -565,7 +565,7 @@ func (cmd *Cmd) command_time(line string) (stop bool) {
 			if !quiet {
 				fmt.Println(d)
 			}
-			cmd.SetVar("elapsed", d, false)
+			cmd.SetVar("elapsed", int64(d / time.Millisecond), false)
 		}
 	}
 
