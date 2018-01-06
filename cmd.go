@@ -521,8 +521,8 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 
 	for i := uint64(1); i <= count; i++ {
 		cmd.context.SetVar("index", i, false)
-		stop = cmd.RunBlock("", block, nil) || cmd.Interrupted
-		if stop {
+		rstop := cmd.RunBlock("", block, nil) || cmd.Interrupted
+		if rstop {
 			break
 		}
 
@@ -565,7 +565,7 @@ func (cmd *Cmd) command_time(line string) (stop bool) {
 			if !quiet {
 				fmt.Println(d)
 			}
-			cmd.SetVar("elapsed", int64(d / time.Millisecond), false)
+			cmd.SetVar("elapsed", int64(d/time.Millisecond), false)
 		}
 	}
 
