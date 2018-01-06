@@ -457,8 +457,11 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 }
 
 func (cmd *Cmd) command_repeat(line string) (stop bool) {
-	count := ^uint64(0)      // almost forever
+	forever := ^uint64(0) // almost forever
+
+	count := forever
 	wait := time.Duration(0) // no wait
+	quiet := false
 	arg := ""
 
 	for {
@@ -476,9 +479,10 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 				break
 			}
 
-			if strings.HasPrefix(arg, "--count=") {
+			if arg == "-q" || arg == "--quiet" {
+				quiet = true
+			} else if strings.HasPrefix(arg, "--count=") {
 				count, _ = strconv.ParseUint(arg[8:], 10, 64)
-				fmt.Println("count", count)
 			} else if strings.HasPrefix(arg, "--wait=") {
 				w, err := strconv.Atoi(arg[7:])
 				if err == nil {
@@ -486,7 +490,6 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 				} else {
 					wait, _ = time.ParseDuration(arg[7:])
 				}
-				fmt.Println("wait", wait)
 			} else {
 				// unknown option
 				fmt.Println("invalid option", arg)
@@ -494,6 +497,15 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 			}
 		} else {
 			break
+		}
+	}
+
+	if !quiet {
+		if count != forever {
+			fmt.Println("count", count)
+		}
+		if wait != 0 {
+			fmt.Println("wait", wait)
 		}
 	}
 
