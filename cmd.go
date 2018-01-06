@@ -217,6 +217,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.Add(Command{"echo", `echo input line`, cmd.command_echo, nil})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.command_repeat, nil})
+	cmd.Add(Command{"time", `time [-q] [starttime]`, cmd.command_time, nil})
 	cmd.Add(Command{"exit", `exit program`, command_exit, nil})
 
 	for _, p := range plugins {
@@ -531,6 +532,43 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 	}
 
 	cmd.context.PopScope()
+	return
+}
+
+func (cmd *Cmd) command_time(line string) (stop bool) {
+	quiet := false
+
+	if strings.HasPrefix(line, "-q") || strings.HasPrefix(line, "--q") {
+		quiet = true
+
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) < 2 {
+			line = ""
+		} else {
+			line = strings.TrimSpace(parts[1])
+		}
+	}
+
+	if line == "" {
+		t := time.Now().Format(time.RFC3339)
+		if !quiet {
+			fmt.Println(t)
+		}
+
+		cmd.SetVar("time", t, false)
+	} else {
+		t, err := time.Parse(time.RFC3339, line)
+		if err != nil {
+			fmt.Println("invalid start time")
+		} else {
+			d := time.Since(t).Round(10 * time.Millisecond)
+			if !quiet {
+				fmt.Println(d)
+			}
+			cmd.SetVar("elapsed", d, false)
+		}
+	}
+
 	return
 }
 
