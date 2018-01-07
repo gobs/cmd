@@ -435,6 +435,11 @@ func intString(v int64, base int) string {
 	return strconv.FormatInt(v, base)
 }
 
+func floatString(v float64) string {
+	s := strconv.FormatFloat(v, 'f', 3, 64)
+	return strings.TrimSuffix(s, ".000")
+}
+
 func (cf *controlFlow) command_expression(line string) (stop bool) {
 	parts := args.GetArgsN(line, 2) // [ op, arg1 ]
 	if len(parts) != 2 {
@@ -492,13 +497,13 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 			return
 		}
 
-		n1, err := parseInt64(parts[0])
+		n1, err := parseFloat(parts[0])
 		if err != nil {
 			fmt.Println("not a number:", parts[0])
 			return
 		}
 
-		n2, err := parseInt64(parts[1])
+		n2, err := parseFloat(parts[1])
 		if err != nil {
 			fmt.Println("not a number:", parts[1])
 			return
@@ -513,7 +518,7 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 		} else if op == "/" {
 			n1 /= n2
 		}
-		res = intString(n1, 10)
+		res = floatString(n1)
 
 	case "upper":
 		res = strings.ToUpper(line)
