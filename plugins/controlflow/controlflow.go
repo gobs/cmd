@@ -113,11 +113,11 @@ func (cf *controlFlow) command_function(line string) (stop bool) {
 func (cf *controlFlow) command_variable(line string) (stop bool) {
 	options, line := args.GetOptions(line)
 
-	var quiet bool
 	var remove bool
 
 	prefix := "global"
 	vars := cf.ctx.GetScope(true)
+        quiet := cf.cmd.Silent()
 
 	for _, op := range options {
 		switch op {
@@ -582,7 +582,10 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 		return
 	}
 
-	fmt.Println(res)
+        if !cf.cmd.Silent() {
+	    fmt.Println(res)
+        }
+
 	cf.cmd.SetVar("result", res, true)
 	return
 }
