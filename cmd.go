@@ -217,7 +217,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.Add(Command{"echo", `echo input line`, cmd.command_echo, nil})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.command_repeat, nil})
-	cmd.Add(Command{"time", `time [-q] [starttime]`, cmd.command_time, nil})
+	cmd.Add(Command{"time", `time [starttime]`, cmd.command_time, nil})
 	cmd.Add(Command{"exit", `exit program`, command_exit, nil})
 
 	for _, p := range plugins {
@@ -462,7 +462,6 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 
 	count := forever
 	wait := time.Duration(0) // no wait
-	quiet := false
 	arg := ""
 
 	for {
@@ -480,9 +479,7 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 				break
 			}
 
-			if arg == "-q" || arg == "--quiet" {
-				quiet = true
-			} else if strings.HasPrefix(arg, "--count=") {
+			if strings.HasPrefix(arg, "--count=") {
 				count, _ = strconv.ParseUint(arg[8:], 10, 64)
 			} else if strings.HasPrefix(arg, "--wait=") {
 				w, err := strconv.Atoi(arg[7:])
@@ -501,7 +498,7 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 		}
 	}
 
-	if !quiet {
+	if !cmd.Silent() {
 		if count != forever {
 			fmt.Println("count", count)
 		}
@@ -536,19 +533,6 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 }
 
 func (cmd *Cmd) command_time(line string) (stop bool) {
-	quiet := false
-
-	if strings.HasPrefix(line, "-q") || strings.HasPrefix(line, "--q") {
-		quiet = true
-
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) < 2 {
-			line = ""
-		} else {
-			line = strings.TrimSpace(parts[1])
-		}
-	}
-
 	if line == "" {
 		t := time.Now().Format(time.RFC3339)
 		if !quiet {
@@ -562,7 +546,7 @@ func (cmd *Cmd) command_time(line string) (stop bool) {
 			fmt.Println("invalid start time")
 		} else {
 			d := time.Since(t).Round(10 * time.Millisecond)
-			if !quiet {
+			if !cmd.Silent() {
 				fmt.Println(d)
 			}
 			cmd.SetVar("elapsed", int64(d/time.Millisecond), false)
@@ -747,4 +731,11 @@ func (cmd *Cmd) GetIntVar(name string, global bool) (val int) {
 	sval, _ := cmd.context.GetVar(name)
 	val, _ = strconv.Atoi(sval)
 	return
+}
+
+//
+// Silent returns true if the command should be silent (not print results to the console)
+//
+func (cmd *Cmd) Silent() bool {
+	return cmd.GetBoolVar("print") == false
 }
