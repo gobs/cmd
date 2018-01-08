@@ -175,7 +175,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 				res = mres
 			}
 
-			if commander.GetBoolVar("print") {
+			if !commander.Silent() {
 				PrintJson(res)
 			}
 
@@ -229,7 +229,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 			}
 
 			res := jp.Process(jbody, joptions)
-			if commander.GetBoolVar("print") {
+			if !commander.Silent() {
 				PrintJson(res)
 			}
 			commander.SetVar("error", "", true)
