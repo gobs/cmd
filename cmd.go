@@ -547,11 +547,11 @@ func (cmd *Cmd) command_time(line string) (stop bool) {
 		if err != nil {
 			fmt.Println("invalid start time")
 		} else {
-			d := time.Since(t).Round(10 * time.Millisecond)
+			d := time.Since(t).Round(time.Millisecond)
 			if !cmd.Silent() {
 				fmt.Println(d)
 			}
-			cmd.SetVar("elapsed", int64(d/time.Millisecond), false)
+			cmd.SetVar("elapsed", d.Seconds(), false)
 		}
 	}
 
