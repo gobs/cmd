@@ -37,7 +37,7 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 
 	commander.Add(cmd.Command{"stats",
 		`
-                stats {min|max|mean|median|sum|variance|pN} value...
+                stats {min|max|mean|median|sum|variance|std|pN} value...
                 `,
 		func(line string) (stop bool) {
 			var res float64
@@ -45,7 +45,7 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 
 			parts := args.GetArgs(line) // [ type, value, ... ]
 			if len(parts) == 0 {
-				fmt.Println("usage: stats {min|max|mean|median|sum|variance|pN} value...")
+				fmt.Println("usage: stats {min|max|mean|median|sum|variance|std|pN} value...")
 				return
 			}
 
@@ -64,12 +64,16 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 					res, err = data.Mean()
 				case "median":
 					res, err = data.Median()
+				//case "mode":
+				//	res, err = data.Mode()
 				case "sum":
 					res, err = data.Sum()
 				case "variance":
 					res, err = data.Variance()
+				case "std":
+					res, err = data.StandardDeviation()
 				default:
-					fmt.Println("usage: stats {min|max|mean|median|sum|variance|pN} value...")
+					fmt.Println("usage: stats {min|max|mean|median|sum|variance|std|pN} value...")
 					return
 				}
 			}
