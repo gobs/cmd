@@ -117,7 +117,7 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	prefix := "global"
 	vars := cf.ctx.GetScope(true)
-        quiet := cf.cmd.Silent()
+	quiet := cf.cmd.Silent()
 
 	for _, op := range options {
 		switch op {
@@ -331,7 +331,7 @@ func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 				res = len(args[0]) != 0
 
 			default:
-				err = fmt.Errorf("expected 1 argument, got %v", nargs)
+				res = true
 			}
 		case "eq":
 			cres, err = compare(args, false)
@@ -582,9 +582,9 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 		return
 	}
 
-        if !cf.cmd.Silent() {
-	    fmt.Println(res)
-        }
+	if !cf.cmd.Silent() {
+		fmt.Println(res)
+	}
 
 	cf.cmd.SetVar("result", res, true)
 	return

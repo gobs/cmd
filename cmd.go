@@ -225,6 +225,8 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 			panic("plugin initialization failed: " + err.Error())
 		}
 	}
+
+	cmd.context.SetVar("print", true, true)
 }
 
 //
@@ -535,7 +537,7 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 func (cmd *Cmd) command_time(line string) (stop bool) {
 	if line == "" {
 		t := time.Now().Format(time.RFC3339)
-                if !cmd.Silent() {
+		if !cmd.Silent() {
 			fmt.Println(t)
 		}
 

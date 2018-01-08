@@ -5,6 +5,7 @@ import (
 	"github.com/gobs/cmd"
 	"github.com/gobs/cmd/plugins/controlflow"
 	"github.com/gobs/cmd/plugins/json"
+	"github.com/gobs/cmd/plugins/stats"
 
 	"fmt"
 	"os"
@@ -35,7 +36,7 @@ func CompletionFunction(text, line string) (matches []string) {
 
 func main() {
 	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction, EnableShell: true}
-	commander.Init(controlflow.Plugin, json.Plugin)
+	commander.Init(controlflow.Plugin, json.Plugin, stats.Plugin)
 
 	/*
 		commander.Vars = map[string]string{
@@ -96,8 +97,6 @@ func main() {
 			fmt.Printf("%q\n", args.GetArgs(line))
 			return
 		}})
-
-	//json.Init(commander)
 
 	if len(os.Args) > 1 {
 		cmd := strings.Join(os.Args[1:], " ")
