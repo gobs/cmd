@@ -566,6 +566,43 @@ func (cmd *Cmd) command_output(line string) (stop bool) {
 		if line == "--" && cmd.stdout != nil && os.Stdout != cmd.stdout { // default stdout
 			os.Stdout.Close()
 			os.Stdout = cmd.stdout
+		} else if strings.HasPrefix(line, "|") { // pipe
+			line = strings.TrimSpace(line[1:])
+			f, err := os.Create(line)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return
+			}
+
+			r, w, err := os.Pipe()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "can't create pipe:", err)
+				return
+			}
+
+			if cmd.stdout == nil {
+				cmd.stdout = os.Stdout
+			}
+
+			os.Stdout = w
+			go func() {
+				b := make([]byte, 1024)
+
+				for {
+					n, err := r.Read(b)
+					if err == io.EOF {
+						break
+					} else if err != nil {
+						fmt.Fprintln(os.Stderr, "can't read pipe:", err)
+						break
+					}
+
+					cmd.stdout.Write(b[:n])
+					f.Write(b[:n])
+				}
+
+				r.Close()
+			}()
 		} else {
 			f, err := os.Create(line)
 			if err != nil {

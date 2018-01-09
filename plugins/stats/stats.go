@@ -56,8 +56,38 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 			if len(parts) == 1 {
 				res = 0.0
 			} else {
-				cmd := parts[0]
-				data := stats.LoadRawData(parts[1:])
+				cmd, parts := parts[0], parts[1:]
+				sample := false
+				population := false
+				geometric := false
+				harmonic := false
+				nearestRank := false
+
+				if len(parts) > 0 {
+					switch parts[1] {
+					case "-g", "--geometric":
+						geometric = true
+						parts = parts[1:]
+
+					case "-h", "--harmonic":
+						harmonic = true
+						parts = parts[1:]
+
+					case "-s", "--sample":
+						sample = true
+						parts = parts[1:]
+
+					case "-p", "--population":
+						population = true
+						parts = parts[1:]
+
+					case "-n", "--nearest-rank":
+						nearestRank = true
+						parts = parts[1:]
+					}
+				}
+
+				data := stats.LoadRawData(parts)
 				pc := 0.0
 
 				if strings.HasPrefix(cmd, "p") {
@@ -76,7 +106,13 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 				case "max":
 					res, err = data.Max()
 				case "mean":
-					res, err = data.Mean()
+					if geometric {
+						res, err = data.GeometricMean()
+					} else if harmonic {
+						res, err = data.HarmonicMean()
+					} else {
+						res, err = data.Mean()
+					}
 				case "median":
 					res, err = data.Median()
 				//case "mode":
@@ -84,11 +120,27 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 				case "sum":
 					res, err = data.Sum()
 				case "variance":
-					res, err = data.Variance()
+					if sample {
+						res, err = data.SampleVariance()
+					} else if population {
+						res, err = data.PopulationVariance()
+					} else {
+						res, err = data.Variance()
+					}
 				case "std":
-					res, err = data.StandardDeviation()
+					if sample {
+						res, err = data.StandardDeviationSample()
+					} else if population {
+						res, err = data.StandardDeviationPopulation()
+					} else {
+						res, err = data.StandardDeviation()
+					}
 				case "p":
-					res, err = data.Percentile(pc)
+					if nearestRank {
+						res, err = data.PercentileNearestRank(pc)
+					} else {
+						res, err = data.Percentile(pc)
+					}
 				default:
 					fmt.Println("usage: stats {min|max|mean|median|sum|variance|std|pN} value...")
 					return
