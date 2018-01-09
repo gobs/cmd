@@ -178,6 +178,8 @@ type Cmd struct {
 	waitMax, waitCount int
 
 	context *internal.Context
+
+	stdout *os.File // original stdout
 }
 
 //
@@ -218,6 +220,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
 	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.command_repeat, nil})
 	cmd.Add(Command{"time", `time [starttime]`, cmd.command_time, nil})
+	cmd.Add(Command{"output", `output [filename|--]`, cmd.command_output, nil})
 	cmd.Add(Command{"exit", `exit program`, command_exit, nil})
 
 	for _, p := range plugins {
@@ -558,6 +561,30 @@ func (cmd *Cmd) command_time(line string) (stop bool) {
 	return
 }
 
+func (cmd *Cmd) command_output(line string) (stop bool) {
+	if line != "" {
+		if line == "--" && cmd.stdout != nil && os.Stdout != cmd.stdout { // default stdout
+			os.Stdout.Close()
+			os.Stdout = cmd.stdout
+		} else {
+			f, err := os.Create(line)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return
+			}
+
+			if cmd.stdout == nil {
+				cmd.stdout = os.Stdout
+			}
+
+			os.Stdout = f
+		}
+	}
+
+	fmt.Fprintln(os.Stderr, "output:", os.Stdout.Name())
+	return
+}
+
 func command_exit(line string) (stop bool) {
 	fmt.Println("goodbye!")
 	return true
@@ -619,6 +646,11 @@ func (cmd *Cmd) CmdLoop() {
 	defer func() {
 		cmd.context.Close()
 		cmd.PostLoop()
+
+		if os.Stdout != cmd.stdout {
+			os.Stdout.Close()
+			os.Stdout = cmd.stdout
+		}
 	}()
 
 	sigc := make(chan os.Signal, 1)
