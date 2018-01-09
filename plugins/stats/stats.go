@@ -25,6 +25,10 @@ var (
 	Plugin = &statsPlugin{}
 )
 
+func parseFloat(v string) (float64, error) {
+	return strconv.ParseFloat(v, 64)
+}
+
 func floatString(v float64) string {
 	s := strconv.FormatFloat(v, 'f', 3, 64)
 	return strings.TrimSuffix(s, ".000")
@@ -54,6 +58,17 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 			} else {
 				cmd := parts[0]
 				data := stats.LoadRawData(parts[1:])
+				pc := 0.0
+
+				if strings.HasPrefix(cmd, "p") {
+					pc, err = parseFloat(cmd[1:])
+					if err != nil {
+						fmt.Println("invalid percentile command:", cmd)
+						return
+					}
+
+					cmd = "p"
+				}
 
 				switch cmd {
 				case "min":
@@ -72,6 +87,8 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 					res, err = data.Variance()
 				case "std":
 					res, err = data.StandardDeviation()
+				case "p":
+					res, err = data.Percentile(pc)
 				default:
 					fmt.Println("usage: stats {min|max|mean|median|sum|variance|std|pN} value...")
 					return
