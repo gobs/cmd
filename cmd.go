@@ -229,7 +229,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 		}
 	}
 
-	cmd.context.SetVar("print", true, true)
+	cmd.SetVar("print", true, true)
 }
 
 //
@@ -634,7 +634,12 @@ func (cmd *Cmd) oneCmd(line string) (stop bool) {
 	if cmd.Timing {
 		start := time.Now()
 		defer func() {
-			fmt.Println("Elapsed:", time.Since(start).Truncate(time.Millisecond))
+			d := time.Since(start).Truncate(time.Millisecond)
+			cmd.SetVar("elapsed", d.Seconds(), false)
+
+			if !cmd.Silent() {
+				fmt.Println("Elapsed:", d)
+			}
 		}()
 	}
 
