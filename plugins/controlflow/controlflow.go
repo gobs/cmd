@@ -15,6 +15,7 @@ import (
 	"github.com/gobs/args"
 	"github.com/gobs/cmd"
 	"github.com/gobs/cmd/internal"
+	"github.com/gobs/simplejson"
 )
 
 type controlFlow struct {
@@ -590,6 +591,32 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 	return
 }
 
+func getList(line string) []interface{} {
+	if strings.HasPrefix(line, "[") {
+		j, err := simplejson.LoadString(line)
+		if err == nil {
+			return j.MustArray()
+		}
+
+		line = line[1:]
+		if strings.HasSuffix(line, "]") {
+			line = line[:len(line)-1]
+		}
+	} else if strings.HasPrefix(line, "(") {
+		line = line[1:]
+		if strings.HasSuffix(line, ")") {
+			line = line[:len(line)-1]
+		}
+	}
+
+	arr := args.GetArgs(line)
+	iarr := make([]interface{}, len(arr))
+	for i, v := range arr {
+		iarr[i] = v
+	}
+	return iarr
+}
+
 func (cf *controlFlow) command_foreach(line string) (stop bool) {
 	arg := ""
 	wait := time.Duration(0) // no wait
@@ -632,19 +659,8 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 	}
 
 	list, command := parts[0], parts[1]
-	if strings.HasPrefix(list, "(") {
-		list = list[1:]
-		if strings.HasSuffix(list, ")") {
-			list = list[:len(list)-1]
-		}
-	} else if strings.HasPrefix(list, "[") {
-		list = list[1:]
-		if strings.HasSuffix(list, "]") {
-			list = list[:len(list)-1]
-		}
-	}
 
-	args := args.GetArgs(list)
+	args := getList(list)
 	count := len(args)
 
 	block, _, err := cf.ctx.ReadBlock(command, "", cf.cmd.ContinuationPrompt)
