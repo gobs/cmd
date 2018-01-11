@@ -218,7 +218,6 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.Add(Command{"help", `list available commands`, cmd.Help, nil})
 	cmd.Add(Command{"echo", `echo input line`, cmd.command_echo, nil})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
-	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=duration] [--echo] command args`, cmd.command_repeat, nil})
 	cmd.Add(Command{"time", `time [starttime]`, cmd.command_time, nil})
 	cmd.Add(Command{"output", `output [filename|--]`, cmd.command_output, nil})
 	cmd.Add(Command{"exit", `exit program`, command_exit, nil})
@@ -459,81 +458,6 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 		}
 	}
 
-	return
-}
-
-func (cmd *Cmd) command_repeat(line string) (stop bool) {
-	forever := ^uint64(0) // almost forever
-
-	count := forever
-	wait := time.Duration(0) // no wait
-	arg := ""
-
-	for {
-		if strings.HasPrefix(line, "-") {
-			// some options
-			parts := strings.SplitN(line, " ", 2)
-			if len(parts) < 2 {
-				// no command
-				fmt.Println("nothing to repeat")
-				return
-			}
-
-			arg, line = parts[0], strings.TrimSpace(parts[1])
-			if arg == "--" {
-				break
-			}
-
-			if strings.HasPrefix(arg, "--count=") {
-				count, _ = strconv.ParseUint(arg[8:], 10, 64)
-			} else if strings.HasPrefix(arg, "--wait=") {
-				w, err := strconv.Atoi(arg[7:])
-				if err == nil {
-					wait = time.Duration(w) * time.Second
-				} else {
-					wait, _ = time.ParseDuration(arg[7:])
-				}
-			} else {
-				// unknown option
-				fmt.Println("invalid option", arg)
-				return
-			}
-		} else {
-			break
-		}
-	}
-
-	if !cmd.Silent() {
-		if count != forever {
-			fmt.Println("count", count)
-		}
-		if wait != 0 {
-			fmt.Println("wait", wait)
-		}
-	}
-
-	block, _, err := cmd.context.ReadBlock(line, "", cmd.ContinuationPrompt)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	cmd.context.PushScope(nil, nil)
-	cmd.context.SetVar("count", count, false)
-
-	for i := uint64(1); i <= count; i++ {
-		if wait > 0 && i > 0 {
-			time.Sleep(wait)
-		}
-
-		cmd.context.SetVar("index", i, false)
-		rstop := cmd.RunBlock("", block, nil) || cmd.Interrupted
-		if rstop {
-			break
-		}
-	}
-
-	cmd.context.PopScope()
 	return
 }
 

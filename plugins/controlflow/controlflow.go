@@ -617,6 +617,74 @@ func getList(line string) []interface{} {
 	return iarr
 }
 
+func (cf *controlFlow) command_repeat(line string) (stop bool) {
+	forever := ^uint64(0) // almost forever
+
+	count := forever
+	wait := time.Duration(0) // no wait
+	arg := ""
+
+	for {
+		if strings.HasPrefix(line, "-") {
+			// some options
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) < 2 {
+				// no command
+				fmt.Println("nothing to repeat")
+				return
+			}
+
+			arg, line = parts[0], strings.TrimSpace(parts[1])
+			if arg == "--" {
+				break
+			}
+
+			if strings.HasPrefix(arg, "--count=") {
+				arg = cf.expandVariables(arg)
+				count, _ = strconv.ParseUint(arg[8:], 10, 64)
+			} else if strings.HasPrefix(arg, "--wait=") {
+				arg = cf.expandVariables(arg)
+				w, err := strconv.Atoi(arg[7:])
+				if err == nil {
+					wait = time.Duration(w) * time.Second
+				} else {
+					wait, _ = time.ParseDuration(arg[7:])
+				}
+			} else {
+				// unknown option
+				fmt.Println("invalid option", arg)
+				return
+			}
+		} else {
+			break
+		}
+	}
+
+	block, _, err := cf.ctx.ReadBlock(line, "", cf.cmd.ContinuationPrompt)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	cf.ctx.PushScope(nil, nil)
+	cf.ctx.SetVar("count", count, false)
+
+	for i := uint64(1); i <= count; i++ {
+		if wait > 0 && i > 0 {
+			time.Sleep(wait)
+		}
+
+		cf.ctx.SetVar("index", i, false)
+		rstop := cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted
+		if rstop {
+			break
+		}
+	}
+
+	cf.ctx.PopScope()
+	return
+}
+
 func (cf *controlFlow) command_foreach(line string) (stop bool) {
 	arg := ""
 	wait := time.Duration(0) // no wait
@@ -636,6 +704,8 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 			}
 
 			if strings.HasPrefix(arg, "--wait=") {
+				arg = cf.expandVariables(arg)
+
 				w, err := strconv.Atoi(arg[7:])
 				if err == nil {
 					wait = time.Duration(w) * time.Second
@@ -658,7 +728,7 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 		return
 	}
 
-	list, command := parts[0], parts[1]
+	list, command := cf.expandVariables(parts[0]), parts[1]
 
 	args := getList(list)
 	count := len(args)
@@ -794,9 +864,10 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
 	c.Add(cmd.Command{"var", `var [-l|--local] [-q|--quiet] [-r|--remove] name value`, cf.command_variable, nil})
-	c.Add(cmd.Command{"if", `if (condition) body`, cf.command_conditional, nil})
+	c.Add(cmd.Command{"if", `if (condition) command`, cf.command_conditional, nil})
 	c.Add(cmd.Command{"expr", `expr operator operands...`, cf.command_expression, nil})
-	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command args`, cf.command_foreach, nil})
+	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command`, cf.command_foreach, nil})
+	c.Add(cmd.Command{"repeat", `repeat [--count=n] [--wait=duration] [--echo] command`, cf.command_repeat, nil})
 	c.Add(cmd.Command{"load", `load script-file`, cf.command_load, nil})
 	c.Add(cmd.Command{"stop", `stop function or block`, cf.command_stop, nil})
 	return nil
