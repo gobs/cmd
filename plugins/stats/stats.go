@@ -101,8 +101,8 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 				}
 
 				switch cmd {
-                                case "count":
-                                        res = float64(len(data))
+				case "count":
+					res = float64(len(data))
 				case "min":
 					res, err = data.Min()
 				case "max":
