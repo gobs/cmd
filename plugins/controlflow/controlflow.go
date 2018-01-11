@@ -298,8 +298,8 @@ func compare(args []string, num bool) (int, error) {
 
 func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 	if strings.HasPrefix(line, "(") && strings.HasSuffix(line, ")") { // (condition arg1 arg2...)
-		line = strings.TrimPrefix(line, "(")
-		line = strings.TrimSuffix(line, ")")
+		line = line[1:]
+		line = line[:len(line)-1]
 		args := args.GetArgs(line)
 		if len(args) == 0 {
 			return false, fmt.Errorf("invalid condition: %q", line)
@@ -590,6 +590,89 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 	return
 }
 
+func (cf *controlFlow) command_foreach(line string) (stop bool) {
+	arg := ""
+	wait := time.Duration(0) // no wait
+
+	for {
+		if strings.HasPrefix(line, "-") {
+			// some options
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) < 2 {
+				// no command
+				return
+			}
+
+			arg, line = parts[0], strings.TrimSpace(parts[1])
+			if arg == "--" {
+				break
+			}
+
+			if strings.HasPrefix(arg, "--wait=") {
+				w, err := strconv.Atoi(arg[7:])
+				if err == nil {
+					wait = time.Duration(w) * time.Second
+				} else {
+					wait, _ = time.ParseDuration(arg[7:])
+				}
+			} else {
+				// unknown option
+				fmt.Println("invalid option", arg)
+				return
+			}
+		} else {
+			break
+		}
+	}
+
+	parts := args.GetArgsN(line, 2) // [ list, command ]
+	if len(parts) != 2 {
+		fmt.Println("missing argument(s)")
+		return
+	}
+
+	list, command := parts[0], parts[1]
+	if strings.HasPrefix(list, "(") {
+		list = list[1:]
+		if strings.HasSuffix(list, ")") {
+			list = list[:len(list)-1]
+		}
+	} else if strings.HasPrefix(list, "[") {
+		list = list[1:]
+		if strings.HasSuffix(list, "]") {
+			list = list[:len(list)-1]
+		}
+	}
+
+	args := args.GetArgs(list)
+	count := len(args)
+
+	block, _, err := cf.ctx.ReadBlock(command, "", cf.cmd.ContinuationPrompt)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	cf.ctx.PushScope(nil, nil)
+	cf.ctx.SetVar("count", count, false)
+
+	for i, v := range args {
+		if wait > 0 && i > 0 {
+			time.Sleep(wait)
+		}
+
+		cf.cmd.SetVar("index", i, false)
+		cf.cmd.SetVar("item", v, false)
+		rstop := cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted
+		if rstop {
+			break
+		}
+	}
+
+	cf.ctx.PopScope()
+	return
+}
+
 func (cf *controlFlow) command_load(line string) (stop bool) {
 	if len(line) == 0 {
 		fmt.Println("missing script file")
@@ -645,6 +728,9 @@ func canExpand(line string) bool {
 	if strings.HasPrefix(line, "repeat ") {
 		return false
 	}
+	if strings.HasPrefix(line, "foreach ") {
+		return false
+	}
 	return true
 }
 
@@ -694,6 +780,7 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	c.Add(cmd.Command{"var", `var [-l|--local] [-q|--quiet] [-r|--remove] name value`, cf.command_variable, nil})
 	c.Add(cmd.Command{"if", `if (condition) body`, cf.command_conditional, nil})
 	c.Add(cmd.Command{"expr", `expr operator operands...`, cf.command_expression, nil})
+	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command args`, cf.command_foreach, nil})
 	c.Add(cmd.Command{"load", `load script-file`, cf.command_load, nil})
 	c.Add(cmd.Command{"stop", `stop function or block`, cf.command_stop, nil})
 	return nil
