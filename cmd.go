@@ -218,7 +218,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.Add(Command{"help", `list available commands`, cmd.Help, nil})
 	cmd.Add(Command{"echo", `echo input line`, cmd.command_echo, nil})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
-	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=ms] [--echo] command args`, cmd.command_repeat, nil})
+	cmd.Add(Command{"repeat", `repeat [--count=n] [--wait=duration] [--echo] command args`, cmd.command_repeat, nil})
 	cmd.Add(Command{"time", `time [starttime]`, cmd.command_time, nil})
 	cmd.Add(Command{"output", `output [filename|--]`, cmd.command_output, nil})
 	cmd.Add(Command{"exit", `exit program`, command_exit, nil})
@@ -522,14 +522,14 @@ func (cmd *Cmd) command_repeat(line string) (stop bool) {
 	cmd.context.SetVar("count", count, false)
 
 	for i := uint64(1); i <= count; i++ {
+		if wait > 0 && i > 0 {
+			time.Sleep(wait)
+		}
+
 		cmd.context.SetVar("index", i, false)
 		rstop := cmd.RunBlock("", block, nil) || cmd.Interrupted
 		if rstop {
 			break
-		}
-
-		if wait > 0 && i < count-1 {
-			time.Sleep(wait)
 		}
 	}
 
