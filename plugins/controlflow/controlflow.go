@@ -115,23 +115,14 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 	options, line := args.GetOptions(line)
 
 	var remove bool
-
-	prefix := "global"
-	vars := cf.ctx.GetScope(true)
-	quiet := cf.cmd.SilentResult()
+	var global bool
 
 	for _, op := range options {
 		switch op {
-		case "-q", "--quiet":
-			quiet = true
+		case "-g", "--global":
+			global = true
 
-		case "-l", "--local":
-			if cf.ctx.GetScope(false) != nil {
-				vars = cf.ctx.GetScope(false)
-				prefix = "local"
-			}
-
-		case "-r", "-rm", "--remove":
+		case "-r", "-rm", "--remove", "-u", "--unset":
 			remove = true
 
 		default:
@@ -142,13 +133,13 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	// var
 	if len(line) == 0 {
-		if len(vars) == 0 {
-			fmt.Println("no", prefix, "variables")
-		} else {
-			fmt.Println(prefix, "variables:")
-			for k, v := range vars {
-				fmt.Printf("  %v=%v\n", k, v)
-			}
+		if global {
+			fmt.Println("global option not supported here")
+			return
+		}
+
+		for k, v := range cf.ctx.GetAllVars() {
+			fmt.Printf("  %v=%v\n", k, v)
 		}
 
 		return
@@ -166,34 +157,24 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	// var name value
 	if len(parts) == 2 {
-		if vars == nil {
-			fmt.Println(prefix, "is nil")
-		}
-		vars[name] = parts[1]
-		if quiet {
-			return
-		}
+		cf.ctx.SetVar(name, parts[1], global)
+		return
 	}
 
-	value, ok := vars[name]
-
+	// var -r name
 	if remove {
-		if ok {
-			delete(vars, name)
-
-			if !quiet {
-				fmt.Println(name, "removed")
-			}
-
-			return
-		}
+		cf.ctx.UnsetVar(name, global)
+		return
 	}
 
-	if !ok {
-		if !quiet {
-			fmt.Println("no", prefix, "variable", name)
-		}
-	} else {
+	// var name
+	if global {
+		fmt.Println("global option not supported here")
+		return
+	}
+
+	value, ok := cf.ctx.GetVar(name)
+	if ok {
 		fmt.Println(name, "=", value)
 	}
 	return
@@ -863,12 +844,14 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	cf.functionNames = make([]string, 0)
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
-	c.Add(cmd.Command{"var", `var [-l|--local] [-q|--quiet] [-r|--remove] name value`, cf.command_variable, nil})
+	c.Add(cmd.Command{"var", `var [-g|--global] [-r|--remove|-u|--unset] name value`, cf.command_variable, nil})
 	c.Add(cmd.Command{"if", `if (condition) command`, cf.command_conditional, nil})
 	c.Add(cmd.Command{"expr", `expr operator operands...`, cf.command_expression, nil})
 	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command`, cf.command_foreach, nil})
 	c.Add(cmd.Command{"repeat", `repeat [--count=n] [--wait=duration] [--echo] command`, cf.command_repeat, nil})
 	c.Add(cmd.Command{"load", `load script-file`, cf.command_load, nil})
 	c.Add(cmd.Command{"stop", `stop function or block`, cf.command_stop, nil})
+
+	c.Commands["set"] = c.Commands["var"]
 	return nil
 }

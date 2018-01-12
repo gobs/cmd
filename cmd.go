@@ -716,8 +716,8 @@ func (cmd *Cmd) SetVar(k string, v interface{}) {
 //
 // UnsetVar removes a variable from the current scope
 //
-func (cmd *Cmd) UnsetVar(k string, v interface{}) {
-	cmd.context.UnsetVar(k, v, false)
+func (cmd *Cmd) UnsetVar(k string) {
+	cmd.context.UnsetVar(k, false)
 }
 
 //
