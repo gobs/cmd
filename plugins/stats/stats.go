@@ -88,7 +88,7 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 
 	commander.Add(cmd.Command{"stats",
 		`
-                stats {count|min|max|mean|median|sum|variance|std|pN} value...
+                stats {count|sort|min|max|mean|median|sum|variance|std|pN} value...
                 `,
 		func(line string) (stop bool) {
 			var res float64
@@ -96,7 +96,7 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 
 			parts := args.GetArgs(line) // [ type, value, ... ]
 			if len(parts) == 0 {
-				fmt.Println("usage: stats {count|min|max|mean|median|sum|variance|std|pN} value...")
+				fmt.Println("usage: stats {count|sort|min|max|mean|median|sum|variance|std|pN} value...")
 				return
 			}
 
@@ -148,6 +148,20 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 				}
 
 				switch cmd {
+				case "sort":
+					sorted := sortedCopy(data)
+					ssort := make([]string, len(sorted))
+					for i, v := range sorted {
+						ssort[i] = floatString(v)
+					}
+					sres := strings.Join(ssort, " ")
+					commander.SetVar("error", "")
+					commander.SetVar("result", sres)
+					if !commander.SilentResult() {
+						fmt.Println(sres)
+					}
+					return
+
 				case "count":
 					res = float64(len(data))
 				case "min":
@@ -191,7 +205,7 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 						res, err = Percentile(data, pc)
 					}
 				default:
-					fmt.Println("usage: stats {count|min|max|mean|median|sum|variance|std|pN} value...")
+					fmt.Println("usage: stats {count|sort|min|max|mean|median|sum|variance|std|pN} value...")
 					return
 				}
 			}
