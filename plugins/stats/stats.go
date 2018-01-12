@@ -8,6 +8,8 @@ package stats
 
 import (
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -32,6 +34,51 @@ func parseFloat(v string) (float64, error) {
 func floatString(v float64) string {
 	s := strconv.FormatFloat(v, 'f', 3, 64)
 	return strings.TrimSuffix(s, ".000")
+}
+
+// sortedCopy returns a sorted copy of float64s
+func sortedCopy(input stats.Float64Data) (sorted stats.Float64Data) {
+	sorted = make(stats.Float64Data, input.Len())
+	copy(sorted, input)
+	sort.Float64s(sorted)
+	return
+}
+
+// Percentile finds the relative standing in a slice of floats
+// (note: the "Percentile" method in "stats" is incorrect)
+
+func Percentile(input stats.Float64Data, percent float64) (percentile float64, err error) {
+
+	if input.Len() == 0 {
+		return math.NaN(), stats.EmptyInput
+	}
+
+	if percent < 0 || percent > 100 {
+		return math.NaN(), stats.BoundsErr
+	}
+
+	// Start by sorting a copy of the slice
+	sorted := sortedCopy(input)
+
+	// Edge cases
+	if percent == 0.0 { // The percentile argument of 0 will return the minimum value in the dataset.
+		return sorted[0], nil
+	}
+	if percent == 50.0 { // The percentile argument of 50 returns the median value.
+		return sorted.Median()
+	}
+	if percent == 100.0 { // The percentile argument of 100 returns the maximum value from the dataset.
+		return sorted[len(sorted)-1], nil
+	}
+
+	// Find the rank. Rank is the position of an element in the dataset.
+	rank := ((percent / 100) * float64(len(sorted)-1))
+
+	ri := int(rank)
+	rf := rank - float64(ri)
+
+	percentile = sorted[ri] + rf*(sorted[ri+1]-sorted[ri])
+	return
 }
 
 //
@@ -141,7 +188,7 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 					if nearestRank {
 						res, err = data.PercentileNearestRank(pc)
 					} else {
-						res, err = data.Percentile(pc)
+						res, err = Percentile(data, pc)
 					}
 				default:
 					fmt.Println("usage: stats {count|min|max|mean|median|sum|variance|std|pN} value...")
