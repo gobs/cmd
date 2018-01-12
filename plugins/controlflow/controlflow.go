@@ -118,7 +118,7 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	prefix := "global"
 	vars := cf.ctx.GetScope(true)
-	quiet := cf.cmd.Silent()
+	quiet := cf.cmd.SilentResult()
 
 	for _, op := range options {
 		switch op {
@@ -147,7 +147,7 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 		} else {
 			fmt.Println(prefix, "variables:")
 			for k, v := range vars {
-				fmt.Printf("%q=%q\n", k, v)
+				fmt.Printf("  %v=%v\n", k, v)
 			}
 		}
 
@@ -583,11 +583,11 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 		return
 	}
 
-	if !cf.cmd.Silent() {
+	if !cf.cmd.SilentResult() {
 		fmt.Println(res)
 	}
 
-	cf.cmd.SetVar("result", res, true)
+	cf.cmd.SetVar("result", res)
 	return
 }
 
@@ -667,14 +667,14 @@ func (cf *controlFlow) command_repeat(line string) (stop bool) {
 	}
 
 	cf.ctx.PushScope(nil, nil)
-	cf.ctx.SetVar("count", count, false)
+	cf.cmd.SetVar("count", count)
 
 	for i := uint64(1); i <= count; i++ {
 		if wait > 0 && i > 0 {
 			time.Sleep(wait)
 		}
 
-		cf.ctx.SetVar("index", i, false)
+		cf.cmd.SetVar("index", i)
 		rstop := cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted
 		if rstop {
 			break
@@ -740,15 +740,15 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 	}
 
 	cf.ctx.PushScope(nil, nil)
-	cf.ctx.SetVar("count", count, false)
+	cf.cmd.SetVar("count", count)
 
 	for i, v := range args {
 		if wait > 0 && i > 0 {
 			time.Sleep(wait)
 		}
 
-		cf.cmd.SetVar("index", i, false)
-		cf.cmd.SetVar("item", v, false)
+		cf.cmd.SetVar("index", i)
+		cf.cmd.SetVar("item", v)
 		rstop := cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted
 		if rstop {
 			break

@@ -151,6 +151,24 @@ func (ctx *Context) SetVar(k string, v interface{}, global bool) {
 }
 
 //
+// UnsetVar removes a variable from the current or global scope
+//
+func (ctx *Context) UnsetVar(k string, v interface{}, global bool) {
+	l := len(ctx.scopes)
+	if l == 0 {
+		panic("no scopes")
+	}
+
+	if global {
+		l = 1
+	}
+
+	if _, ok := ctx.scopes[l-1][k]; ok {
+		delete(ctx.scopes[l-1], k)
+	}
+}
+
+//
 // GetVar return the value of the specified variable from the closest scope
 //
 func (ctx *Context) GetVar(k string) (string, bool) {

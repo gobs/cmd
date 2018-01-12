@@ -150,17 +150,17 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 			}
 
 			if err != nil {
-				commander.SetVar("error", err, true)
-				commander.SetVar("result", "0", true)
+				commander.SetVar("error", err)
+				commander.SetVar("result", "0")
 				fmt.Println(err)
 			} else {
 				sres := floatString(res)
-				if !commander.Silent() {
+				if !commander.SilentResult() {
 					fmt.Println(sres)
 				}
 
-				commander.SetVar("error", "", true)
-				commander.SetVar("result", sres, true)
+				commander.SetVar("error", "")
+				commander.SetVar("result", sres)
 			}
 
 			return

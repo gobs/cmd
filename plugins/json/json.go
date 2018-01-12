@@ -107,6 +107,20 @@ func StringJson(v interface{}, unq bool) (ret string) {
 //
 func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 
+	setError := func(err interface{}) {
+		fmt.Println(err)
+		commander.SetVar("error", err)
+	}
+
+	setJson := func(v interface{}) {
+		commander.SetVar("json", StringJson(v, true))
+		commander.SetVar("error", "")
+
+		if !commander.SilentResult() {
+			PrintJson(v)
+		}
+	}
+
 	commander.Add(cmd.Command{"json",
 		`
                 json field1=value1 field2=value2...       // json object
@@ -119,9 +133,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 			if strings.HasPrefix(line, "{") { // assume is already a JSON object
 
 				if jbody, err := simplejson.LoadString(line); err != nil {
-					err = fmt.Errorf("error parsing object %q", line)
-					commander.SetVar("error", err, true)
-					fmt.Println(err)
+					setError(fmt.Errorf("error parsing object %q", line))
 					return
 				} else {
 					res = jbody.Data()
@@ -140,8 +152,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 					for _, f := range args.GetArgs(line) {
 						v, err := parseValue(f)
 						if err != nil {
-							fmt.Println(err)
-							commander.SetVar("error", err, true)
+							setError(err)
 							return
 						}
 
@@ -161,13 +172,11 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 						mres[name], err = parseValue(value)
 
 						if err != nil {
-							fmt.Println(err)
-							commander.SetVar("error", err, true)
+							setError(err)
 							return
 						}
 					} else {
-						fmt.Println("invalid name=value pair:", f)
-						commander.SetVar("error", "invalid name=value pair", true)
+						setError(fmt.Errorf("invalid name=value pair: %v", f))
 						return
 					}
 				}
@@ -175,12 +184,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 				res = mres
 			}
 
-			if !commander.Silent() {
-				PrintJson(res)
-			}
-
-			commander.SetVar("error", "", true)
-			commander.SetVar("json", StringJson(res, true), true)
+			setJson(res)
 			return
 		},
 		nil})
@@ -205,8 +209,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 
 			parts := args.GetArgsN(line, 2)
 			if len(parts) != 2 {
-				fmt.Println("use: jsonpath [-e|--enhanced] path {json}")
-				commander.SetVar("error", "invalid-usage", true)
+				setError("invalid-usage")
 				return
 			}
 
@@ -217,23 +220,18 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 
 			jbody, err := simplejson.LoadString(parts[1])
 			if err != nil {
-				fmt.Println("json:", err)
-				commander.SetVar("error", err, true)
+				setError(err)
 				return
 			}
 
 			jp := jsonpath.NewProcessor()
 			if !jp.Parse(path) {
-				commander.SetVar("error", fmt.Sprintf("failed to parse %q", path), true)
+				setError(fmt.Errorf("failed to parse %q", path))
 				return // syntax error
 			}
 
 			res := jp.Process(jbody, joptions)
-			if !commander.Silent() {
-				PrintJson(res)
-			}
-			commander.SetVar("error", "", true)
-			commander.SetVar("json", StringJson(res, true), true)
+			setJson(res)
 			return
 		},
 		nil})
@@ -246,7 +244,6 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 			if err != nil {
 				fmt.Println("format:", err)
 				fmt.Println("input:", line)
-				commander.SetVar("error", err, true)
 				return
 			}
 

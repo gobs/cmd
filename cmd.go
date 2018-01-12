@@ -158,6 +158,9 @@ type Cmd struct {
 	// if true, print command before executing
 	Echo bool
 
+	// if true, don't print result of some operations (stored in result variables)
+	Silent bool
+
 	// if true, a Ctrl-C should return an error
 	// CtrlCAborts bool
 
@@ -228,7 +231,9 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 		}
 	}
 
-	cmd.SetVar("print", true, true)
+	cmd.SetVar("echo", cmd.Echo)
+	cmd.SetVar("print", !cmd.Silent)
+	cmd.SetVar("timing", cmd.Timing)
 }
 
 //
@@ -464,21 +469,21 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 func (cmd *Cmd) command_time(line string) (stop bool) {
 	if line == "" {
 		t := time.Now().Format(time.RFC3339)
-		if !cmd.Silent() {
+		if !cmd.SilentResult() {
 			fmt.Println(t)
 		}
 
-		cmd.SetVar("time", t, false)
+		cmd.SetVar("time", t)
 	} else {
 		t, err := time.Parse(time.RFC3339, line)
 		if err != nil {
 			fmt.Println("invalid start time")
 		} else {
 			d := time.Since(t).Round(time.Millisecond)
-			if !cmd.Silent() {
+			if !cmd.SilentResult() {
 				fmt.Println(d)
 			}
-			cmd.SetVar("elapsed", d.Seconds(), false)
+			cmd.SetVar("elapsed", d.Seconds())
 		}
 	}
 
@@ -555,19 +560,19 @@ func command_exit(line string) (stop bool) {
 // This method executes one command
 //
 func (cmd *Cmd) oneCmd(line string) (stop bool) {
-	if cmd.Timing {
+	if cmd.GetBoolVar("timing") {
 		start := time.Now()
 		defer func() {
 			d := time.Since(start).Truncate(time.Millisecond)
-			cmd.SetVar("elapsed", d.Seconds(), false)
+			cmd.SetVar("elapsed", d.Seconds())
 
-			if !cmd.Silent() {
+			if !cmd.SilentResult() {
 				fmt.Println("Elapsed:", d)
 			}
 		}()
 	}
 
-	if cmd.Echo {
+	if cmd.GetBoolVar("echo") {
 		fmt.Println(cmd.Prompt, line)
 	}
 
@@ -702,10 +707,17 @@ func (cmd *Cmd) RunBlock(name string, body []string, args []string) (stop bool) 
 }
 
 //
-// SetVar sets a variable in the current or global scope
+// SetVar sets a variable in the current scope
 //
-func (cmd *Cmd) SetVar(k string, v interface{}, global bool) {
-	cmd.context.SetVar(k, v, global)
+func (cmd *Cmd) SetVar(k string, v interface{}) {
+	cmd.context.SetVar(k, v, false)
+}
+
+//
+// UnsetVar removes a variable from the current scope
+//
+func (cmd *Cmd) UnsetVar(k string, v interface{}) {
+	cmd.context.UnsetVar(k, v, false)
 }
 
 //
@@ -734,8 +746,9 @@ func (cmd *Cmd) GetIntVar(name string, global bool) (val int) {
 }
 
 //
-// Silent returns true if the command should be silent (not print results to the console)
+// SilentResult returns true if the command should be silent
+// (not print results to the console, but only store in return variable)
 //
-func (cmd *Cmd) Silent() bool {
+func (cmd *Cmd) SilentResult() bool {
 	return cmd.GetBoolVar("print") == false
 }
