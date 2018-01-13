@@ -14,6 +14,28 @@ import (
 
 type Arguments = map[string]string
 
+type Scope int
+
+const (
+	InvalidScope Scope = iota
+	LocalScope
+	ParentScope
+	GlobalScope
+)
+
+func (s Scope) String() string {
+	switch s {
+	case LocalScope:
+		return "local"
+	case ParentScope:
+		return "parent"
+	case GlobalScope:
+		return "global"
+	default:
+		return "invalid scope"
+	}
+}
+
 type Context struct {
 	line    *liner.State // interactive line reader
 	scanner BasicScanner // file based line reader
@@ -120,51 +142,70 @@ func (ctx *Context) PopScope() {
 }
 
 //
-// GetScope returns the current scope or the global one if selected
+// GetScope returns the variable sets for the specified scope
 //
-func (ctx *Context) GetScope(global bool) Arguments {
-	l := len(ctx.scopes)
-	if l == 0 {
-		return nil
-	}
-
-	if global {
-		return ctx.scopes[0]
-	} else {
-		return ctx.scopes[l-1]
-	}
-}
-
-//
-// SetVar sets a variable in the current or global scope
-//
-func (ctx *Context) SetVar(k string, v interface{}, global bool) {
-	l := len(ctx.scopes)
-	if l == 0 {
+func (ctx *Context) GetScope(scope Scope) Arguments {
+	i := len(ctx.scopes) - 1 // index of local scope
+	if i < 0 {
 		panic("no scopes")
 	}
 
-	if global {
-		l = 1
+	switch scope {
+	case GlobalScope:
+		i = 0 // index of global scope
+
+	case ParentScope:
+		if i > 0 {
+			i -= 1 // index of parent scope
+		}
 	}
-	ctx.scopes[l-1][k] = fmt.Sprintf("%v", v)
+
+	return ctx.scopes[i]
 }
 
 //
-// UnsetVar removes a variable from the current or global scope
+// SetVar sets a variable in the current, parent or global scope
 //
-func (ctx *Context) UnsetVar(k string, global bool) {
-	l := len(ctx.scopes)
-	if l == 0 {
+func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
+	i := len(ctx.scopes) - 1 // index of local scope
+	if i < 0 {
 		panic("no scopes")
 	}
 
-	if global {
-		l = 1
+	switch scope {
+	case GlobalScope:
+		i = 0 // index of global scope
+
+	case ParentScope:
+		if i > 0 {
+			i -= 1 // index of parent scope
+		}
 	}
 
-	if _, ok := ctx.scopes[l-1][k]; ok {
-		delete(ctx.scopes[l-1], k)
+	ctx.scopes[i][k] = fmt.Sprintf("%v", v)
+}
+
+//
+// UnsetVar removes a variable from the current, parent or global scope
+//
+func (ctx *Context) UnsetVar(k string, scope Scope) {
+	i := len(ctx.scopes) - 1 // index of local scope
+	if i < 0 {
+		panic("no scopes")
+	}
+
+	switch scope {
+	case GlobalScope:
+		i = 0 // index of global scope
+
+	case ParentScope:
+		if i > 0 {
+			i -= 1 // index of parent scope
+		}
+	}
+
+	if _, ok := ctx.scopes[i][k]; ok {
+		delete(ctx.scopes[i], k)
 	}
 }
 

@@ -710,14 +710,14 @@ func (cmd *Cmd) RunBlock(name string, body []string, args []string) (stop bool) 
 // SetVar sets a variable in the current scope
 //
 func (cmd *Cmd) SetVar(k string, v interface{}) {
-	cmd.context.SetVar(k, v, false)
+	cmd.context.SetVar(k, v, internal.LocalScope)
 }
 
 //
 // UnsetVar removes a variable from the current scope
 //
 func (cmd *Cmd) UnsetVar(k string) {
-	cmd.context.UnsetVar(k, false)
+	cmd.context.UnsetVar(k, internal.LocalScope)
 }
 
 //
@@ -739,7 +739,7 @@ func (cmd *Cmd) GetBoolVar(name string) (val bool) {
 //
 // GetIntVar returns the value of the variable as int
 //
-func (cmd *Cmd) GetIntVar(name string, global bool) (val int) {
+func (cmd *Cmd) GetIntVar(name string) (val int) {
 	sval, _ := cmd.context.GetVar(name)
 	val, _ = strconv.Atoi(sval)
 	return

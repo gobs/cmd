@@ -115,12 +115,15 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 	options, line := args.GetOptions(line)
 
 	var remove bool
-	var global bool
+	var scope internal.Scope
 
 	for _, op := range options {
 		switch op {
 		case "-g", "--global":
-			global = true
+			scope = internal.GlobalScope
+
+		case "-p", "--parent", "--return":
+			scope = internal.ParentScope
 
 		case "-r", "-rm", "--remove", "-u", "--unset":
 			remove = true
@@ -133,8 +136,8 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	// var
 	if len(line) == 0 {
-		if global {
-			fmt.Println("global option not supported here")
+		if scope != internal.InvalidScope {
+			fmt.Printf("invalid use of %v scope option", scope)
 			return
 		}
 
@@ -157,19 +160,19 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	// var name value
 	if len(parts) == 2 {
-		cf.ctx.SetVar(name, parts[1], global)
+		cf.ctx.SetVar(name, parts[1], scope)
 		return
 	}
 
 	// var -r name
 	if remove {
-		cf.ctx.UnsetVar(name, global)
+		cf.ctx.UnsetVar(name, scope)
 		return
 	}
 
 	// var name
-	if global {
-		fmt.Println("global option not supported here")
+	if scope != internal.InvalidScope {
+		fmt.Printf("invalid use of %v scope option", scope)
 		return
 	}
 
