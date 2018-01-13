@@ -194,6 +194,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 		`jsonpath [-e] [-c] path {json}`,
 		func(line string) (stop bool) {
 			var joptions jsonpath.ProcessOptions
+                        var verbose bool
 
 			options, line := args.GetOptions(line)
 			for _, o := range options {
@@ -201,6 +202,8 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 					joptions |= jsonpath.Enhanced
 				} else if o == "-c" || o == "--collapse" {
 					joptions |= jsonpath.Collapse
+				} else if o == "-v" || o == "--verbose" {
+					verbose = true
 				} else {
 					line = "" // to force an error
 					break
@@ -229,6 +232,13 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 				setError(fmt.Errorf("failed to parse %q", path))
 				return // syntax error
 			}
+
+                        if verbose {
+                            fmt.Println("jsonpath", path)
+                            for _, n := range jp.Nodes {
+			        fmt.Println(" ", n)
+		            }
+                        }
 
 			res := jp.Process(jbody, joptions)
 			setJson(res)
