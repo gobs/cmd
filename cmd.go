@@ -404,7 +404,11 @@ func (cmd *Cmd) Help(line string) (stop bool) {
 }
 
 func (cmd *Cmd) command_echo(line string) (stop bool) {
-	fmt.Println(line)
+	if strings.HasPrefix(line, "-n ") {
+		fmt.Print(strings.TrimSpace(line[3:]))
+	} else {
+		fmt.Println(line)
+	}
 	return
 }
 
