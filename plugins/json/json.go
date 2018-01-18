@@ -19,6 +19,7 @@ import (
 	"github.com/gobs/cmd/internal"
 	"github.com/gobs/jsonpath"
 	"github.com/gobs/simplejson"
+	"github.com/imdario/mergo"
 )
 
 type jsonPlugin struct {
@@ -131,12 +132,36 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 			var res interface{}
 
 			if strings.HasPrefix(line, "{") { // assume is already a JSON object
+				parts := args.GetArgsN(line, 2)
 
-				if jbody, err := simplejson.LoadString(line); err != nil {
-					setError(fmt.Errorf("error parsing object %q", line))
+				if jbody, err := simplejson.LoadString(parts[0]); err != nil {
+					setError(fmt.Errorf("error parsing object %q", parts[0]))
 					return
 				} else {
 					res = jbody.Data()
+				}
+
+				if len(parts) == 2 { // merge operation
+					// expect a json object for now
+					if jbody, err := simplejson.LoadString(parts[1]); err != nil {
+						setError(fmt.Errorf("error parsing object %q", parts[1]))
+						return
+					} else {
+						dst := res.(map[string]interface{})
+						src, err := jbody.Map()
+
+						if err != nil {
+							setError(fmt.Errorf("merge source should be a map"))
+							return
+						}
+
+						if err = mergo.Merge(&dst, src); err != nil {
+							setError(fmt.Errorf("error merging objects: %v", err))
+							return
+						}
+
+						res = dst
+					}
 				}
 			} else if strings.HasPrefix(line, "[") { // could be a JSON array
 

@@ -471,7 +471,14 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 }
 
 func (cmd *Cmd) command_time(line string) (stop bool) {
-	if line == "" {
+        if line == "-m" || line == "--milli" {
+		t := time.Now().UnixNano() / int64(time.Millisecond)
+		if !cmd.SilentResult() {
+			fmt.Println(t)
+		}
+
+		cmd.SetVar("time", t)
+	} else if line == "" {
 		t := time.Now().Format(time.RFC3339)
 		if !cmd.SilentResult() {
 			fmt.Println(t)
