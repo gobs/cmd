@@ -30,6 +30,48 @@ type controlFlow struct {
 	functionNames []string
 }
 
+type loop struct {
+	start, end, step, Index int64
+}
+
+func newLoop(count int64) (l *loop) {
+	switch {
+	case count > 0:
+		l = &loop{start: 1, end: count, step: 1}
+
+	case count < 0:
+		l = &loop{start: -count, end: 1, step: -1}
+	}
+
+	return
+}
+
+func (l *loop) Next() bool {
+	if l == nil || l.Index == l.end {
+		return false
+	}
+
+	if l.Index == 0 {
+		l.Index = l.start
+	} else {
+		l.Index += l.step
+	}
+
+	return true
+}
+
+func (l *loop) First() bool {
+	return l.Index == l.start
+}
+
+func (l *loop) Last() bool {
+	return l.Index == l.end
+}
+
+func (l *loop) Reset() {
+	l.Index = 0
+}
+
 var (
 	Plugin = &controlFlow{}
 
@@ -602,10 +644,8 @@ func getList(line string) []interface{} {
 }
 
 func (cf *controlFlow) command_repeat(line string) (stop bool) {
-	forever := ^uint64(0) // almost forever
-
-	count := forever
-	wait := time.Duration(0) // no wait
+	count := int64(math.MaxInt64) // almost forever
+	wait := time.Duration(0)      // no wait
 	arg := ""
 
 	for {
@@ -625,7 +665,7 @@ func (cf *controlFlow) command_repeat(line string) (stop bool) {
 
 			if strings.HasPrefix(arg, "--count=") {
 				arg = cf.expandVariables(arg)
-				count, _ = strconv.ParseUint(arg[8:], 10, 64)
+				count, _ = strconv.ParseInt(arg[8:], 10, 64)
 			} else if strings.HasPrefix(arg, "--wait=") {
 				arg = cf.expandVariables(arg)
 				w, err := strconv.Atoi(arg[7:])
@@ -653,12 +693,12 @@ func (cf *controlFlow) command_repeat(line string) (stop bool) {
 	cf.ctx.PushScope(nil, nil)
 	cf.cmd.SetVar("count", count)
 
-	for i := uint64(1); i <= count; i++ {
-		if wait > 0 && i > 0 {
+	for l := newLoop(count); l.Next(); {
+		if wait > 0 && !l.First() {
 			time.Sleep(wait)
 		}
 
-		cf.cmd.SetVar("index", i)
+		cf.cmd.SetVar("index", l.Index)
 		rstop := cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted
 		if rstop {
 			break
