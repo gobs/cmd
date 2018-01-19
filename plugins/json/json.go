@@ -19,7 +19,6 @@ import (
 	"github.com/gobs/cmd/internal"
 	"github.com/gobs/jsonpath"
 	"github.com/gobs/simplejson"
-	"github.com/imdario/mergo"
 )
 
 type jsonPlugin struct {
@@ -103,6 +102,23 @@ func StringJson(v interface{}, unq bool) (ret string) {
 	return
 }
 
+type map_type = map[string]interface{}
+type array_type = []interface{}
+
+func merge_maps(dst, src map_type) {
+	for k, vs := range src {
+		if vd, ok := dst[k]; ok {
+			if ms, ok := vs.(map_type); ok {
+				if md, ok := vd.(map_type); ok {
+					merge_maps(md, ms)
+					continue
+				}
+			}
+		}
+		dst[k] = vs
+	}
+}
+
 //
 // PluginInit initialize this plugin
 //
@@ -155,11 +171,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 							return
 						}
 
-						if err = mergo.Merge(&dst, src); err != nil {
-							setError(fmt.Errorf("error merging objects: %v", err))
-							return
-						}
-
+						merge_maps(dst, src)
 						res = dst
 					}
 				}
