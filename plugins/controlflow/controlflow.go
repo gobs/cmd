@@ -17,6 +17,7 @@ import (
 	"github.com/gobs/cmd"
 	"github.com/gobs/cmd/internal"
 	"github.com/gobs/simplejson"
+	"github.com/gobs/sortedmap"
 )
 
 type controlFlow struct {
@@ -190,8 +191,8 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 			return
 		}
 
-		for k, v := range cf.ctx.GetAllVars() {
-			fmt.Printf("  %v=%v\n", k, v)
+		for _, kv := range sortedmap.AsSortedMap(cf.ctx.GetAllVars()) {
+			fmt.Println(" ", kv)
 		}
 
 		return
