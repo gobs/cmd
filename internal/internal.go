@@ -476,9 +476,8 @@ func (ctx *Context) ResetTerminal() {
 	}
 }
 
-func (ctx *Context) TerminalMode() (mode liner.ModeApplier) {
-	mode, _ = liner.TerminalMode()
-	return
+func (ctx *Context) TerminalMode() (liner.ModeApplier, error) {
+	return liner.TerminalMode()
 }
 
 func (ctx *Context) RestoreMode(m liner.ModeApplier) {

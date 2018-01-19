@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gobs/args"
@@ -24,10 +25,16 @@ type controlFlow struct {
 	cmd *cmd.Cmd
 	ctx *internal.Context
 
-	runCmd func(string) bool
+	_oneCmd    func(string) bool
+	_interrupt func(os.Signal) bool
 
 	functions     map[string][]string
 	functionNames []string
+
+	interruptCount int
+	inLoop         bool
+
+	sync.RWMutex
 }
 
 type loop struct {
@@ -693,17 +700,24 @@ func (cf *controlFlow) command_repeat(line string) (stop bool) {
 	cf.ctx.PushScope(nil, nil)
 	cf.cmd.SetVar("count", count)
 
+	cf.Lock()
+	cf.inLoop = true
+	cf.Unlock()
+
 	for l := newLoop(count); l.Next(); {
 		if wait > 0 && !l.First() {
 			time.Sleep(wait)
 		}
 
 		cf.cmd.SetVar("index", l.Index)
-		rstop := cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted
-		if rstop {
+		if cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted() {
 			break
 		}
 	}
+
+	cf.Lock()
+	cf.inLoop = false
+	cf.Unlock()
 
 	cf.ctx.PopScope()
 	return
@@ -766,6 +780,10 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 	cf.ctx.PushScope(nil, nil)
 	cf.cmd.SetVar("count", count)
 
+	cf.Lock()
+	cf.inLoop = true
+	cf.Unlock()
+
 	for i, v := range args {
 		if wait > 0 && i > 0 {
 			time.Sleep(wait)
@@ -773,11 +791,14 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 
 		cf.cmd.SetVar("index", i)
 		cf.cmd.SetVar("item", v)
-		rstop := cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted
-		if rstop {
+		if cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted() {
 			break
 		}
 	}
+
+	cf.Lock()
+	cf.inLoop = false
+	cf.Unlock()
 
 	cf.ctx.PopScope()
 	return
@@ -818,7 +839,7 @@ func (cf *controlFlow) command_load(line string) (stop bool) {
 		}
 
 		// fmt.Println("load-one", line)
-		if cf.cmd.OneCmd(line) || cf.cmd.Interrupted {
+		if cf.cmd.OneCmd(line) || cf.cmd.Interrupted() {
 			break
 		}
 	}
@@ -868,7 +889,22 @@ func (cf *controlFlow) runFunction(line string) bool {
 		}
 	}
 
-	return cf.runCmd(line)
+	return cf._oneCmd(line)
+}
+
+func (cf *controlFlow) loopCommand() (looping bool) {
+	cf.RLock()
+	looping = cf.inLoop
+	cf.RUnlock()
+	return
+}
+
+func (cf *controlFlow) interruptFunction(s os.Signal) bool {
+	if s == os.Interrupt && cf.loopCommand() {
+		return false
+	}
+
+	return cf._interrupt(s)
 }
 
 //
@@ -882,7 +918,8 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	rand.Seed(time.Now().Unix())
 
 	cf.cmd, cf.ctx = c, ctx
-	cf.runCmd, c.OneCmd = c.OneCmd, cf.runFunction
+	cf._oneCmd, c.OneCmd = c.OneCmd, cf.runFunction
+	cf._interrupt, c.Interrupt = c.Interrupt, cf.interruptFunction
 	cf.functions = make(map[string][]string)
 	cf.functionNames = make([]string, 0)
 

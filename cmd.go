@@ -167,9 +167,6 @@ type Cmd struct {
 	// this is the list of available commands indexed by command name
 	Commands map[string]Command
 
-	// set when the cmd process is interrupted
-	Interrupted bool
-
 	///////// private stuff /////////////
 	completers *linkedCompleter
 
@@ -180,9 +177,10 @@ type Cmd struct {
 	waitGroup          *sync.WaitGroup
 	waitMax, waitCount int
 
-	context *internal.Context
-
-	stdout *os.File // original stdout
+	interrupted bool
+	context     *internal.Context
+	stdout      *os.File // original stdout
+	sync.RWMutex
 }
 
 //
@@ -234,6 +232,13 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.SetVar("echo", cmd.Echo)
 	cmd.SetVar("print", !cmd.Silent)
 	cmd.SetVar("timing", cmd.Timing)
+}
+
+func (cmd *Cmd) Interrupted() (interrupted bool) {
+	cmd.RLock()
+	interrupted = cmd.interrupted
+	cmd.RUnlock()
+	return
 }
 
 //
@@ -471,7 +476,7 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 }
 
 func (cmd *Cmd) command_time(line string) (stop bool) {
-        if line == "-m" || line == "--milli" {
+	if line == "-m" || line == "--milli" {
 		t := time.Now().UnixNano() / int64(time.Millisecond)
 		if !cmd.SilentResult() {
 			fmt.Println(t)
@@ -639,26 +644,30 @@ func (cmd *Cmd) CmdLoop() {
 	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		sig := <-sigc
+		for {
+			sig := <-sigc
+			cmd.Lock()
+			cmd.interrupted = true
+			cmd.Unlock()
 
-		cmd.Interrupted = true
-		cmd.context.ResetTerminal()
+			cmd.context.ResetTerminal()
 
-		signal.Stop(sigc)
+			// signal.Stop(sigc)
 
-		if cmd.Interrupt(sig) {
-			// rethrow signal to kill app
-			p, _ := os.FindProcess(os.Getpid())
-			p.Signal(sig)
-		} else {
-			signal.Notify(sigc, os.Interrupt, sig)
+			if cmd.Interrupt(sig) {
+				// rethrow signal to kill app
+				p, _ := os.FindProcess(os.Getpid())
+				p.Signal(sig)
+			} else {
+				// signal.Notify(sigc, os.Interrupt, sig)
+			}
 		}
 	}()
 
 	cmd.runLoop(true)
 }
 
-func (cmd *Cmd) runLoop(updateHistory bool) (stop bool) {
+func (cmd *Cmd) runLoop(mainLoop bool) (stop bool) {
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
 		line, err := cmd.context.ReadLine(cmd.Prompt, cmd.ContinuationPrompt)
@@ -674,15 +683,20 @@ func (cmd *Cmd) runLoop(updateHistory bool) (stop bool) {
 			continue
 		}
 
-		if updateHistory {
+		if mainLoop {
+			cmd.Lock()
+			cmd.interrupted = false
+			cmd.Unlock()
+
 			cmd.context.UpdateHistory(line) // allow user to recall this line
 		}
 
-		m := cmd.context.TerminalMode()
+		m, _ := cmd.context.TerminalMode()
+		//interactive := err == nil
 
 		cmd.PreCmd(line)
 		stop = cmd.OneCmd(line)
-		stop = cmd.PostCmd(line, stop) || cmd.Interrupted
+		stop = cmd.PostCmd(line, stop) || (mainLoop == false && cmd.Interrupted())
 
 		cmd.context.RestoreMode(m)
 		if stop {
