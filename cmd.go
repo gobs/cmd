@@ -380,7 +380,7 @@ func (cmd *Cmd) help(line string) (stop bool) {
 			}
 		}
 
-		tp := pretty.NewTabPrinter(8)
+		tp := pretty.NewTabPrinter(80 / (max + 1))
 		tp.TabWidth(max + 1)
 
 		for _, c := range cmd.commandNames {

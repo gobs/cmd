@@ -857,7 +857,7 @@ func (cf *controlFlow) help(line string) (stop bool) {
 
 			names, max := cf.functionNames()
 
-			tp := pretty.NewTabPrinter(8)
+			tp := pretty.NewTabPrinter(80 / (max + 1))
 			tp.TabWidth(max + 1)
 
 			for _, c := range names {
