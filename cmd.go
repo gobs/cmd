@@ -73,15 +73,17 @@ type linkedCompleter struct {
 	next      *linkedCompleter
 }
 
+type CompleterWords func() []string
 type CompleterCond func(start, line string) bool
 
 //
 // The context for command completion
 //
 type WordCompleter struct {
-	// the list of words to match on
-	Words []string
-	Cond  CompleterCond
+	// a function that returns the list of words to match on
+	Words CompleterWords
+	// a function that returns true if this completer should be executed
+	Cond CompleterCond
 }
 
 func (c *WordCompleter) Complete(start, line string) (matches []string) {
@@ -89,7 +91,7 @@ func (c *WordCompleter) Complete(start, line string) (matches []string) {
 		return
 	}
 
-	for _, w := range c.Words {
+	for _, w := range c.Words() {
 		if strings.HasPrefix(w, start) {
 			matches = append(matches, w)
 		}
@@ -101,7 +103,7 @@ func (c *WordCompleter) Complete(start, line string) (matches []string) {
 //
 // Create a WordCompleter and initialize with list of words
 //
-func NewWordCompleter(words []string, cond CompleterCond) *WordCompleter {
+func NewWordCompleter(words CompleterWords, cond CompleterCond) *WordCompleter {
 	return &WordCompleter{Words: words, Cond: cond}
 }
 
@@ -140,6 +142,10 @@ type Cmd struct {
 	// this function is called if the command line doesn't match any existing command
 	// by default it displays an error message
 	Default func(string)
+
+	// this function is called when the user types the "help" command.
+	// It is implemented so that it can be overwritten, mainly to support plugins.
+	Help func(string) bool
 
 	// this function is called to implement command completion.
 	// it should return a list of words that match the input text
@@ -211,12 +217,17 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	if cmd.Interrupt == nil {
 		cmd.Interrupt = func(sig os.Signal) bool { return true }
 	}
+	if cmd.Help == nil {
+		cmd.Help = cmd.help
+	}
 	cmd.context = internal.NewContext(cmd.HistoryFile)
 	cmd.context.SetWordCompleter(cmd.wordCompleter)
 	cmd.context.PushScope(nil, nil)
 
 	cmd.Commands = make(map[string]Command)
-	cmd.Add(Command{"help", `list available commands`, cmd.Help, nil})
+	cmd.Add(Command{"help", `list available commands`, func(line string) bool {
+		return cmd.Help(line)
+	}, nil})
 	cmd.Add(Command{"echo", `echo input line`, cmd.command_echo, nil})
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
 	cmd.Add(Command{"time", `time [starttime]`, cmd.command_time, nil})
@@ -270,33 +281,18 @@ func (cmd *Cmd) updateCompleters() {
 		}
 		sort.Strings(cmd.commandNames) // for help listing
 
-		cmd.AddCompleter("", NewWordCompleter(cmd.commandNames, func(s, l string) bool {
+		cmd.AddCompleter("", NewWordCompleter(func() []string {
+			return cmd.commandNames
+		}, func(s, l string) bool {
 			return s == l // check if we are at the beginning of the line
 		}))
 
-		cmd.AddCompleter("help", NewWordCompleter(cmd.commandNames, func(s, l string) bool {
+		cmd.AddCompleter("help", NewWordCompleter(func() []string {
+			return cmd.commandNames
+		}, func(s, l string) bool {
 			return strings.HasPrefix(l, "help ")
 		}))
 	}
-
-	/*
-				if cmd.functionCompleter == nil {
-					cmd.functionNames = []string{}
-					cmd.functionCompleter = NewCompleter(cmd.functionNames)
-				}
-
-				cmd.functionNames = cmd.functionNames[:0]
-				for name := range cmd.functions {
-					cmd.functionNames = append(cmd.functionNames, name)
-				}
-				sort.Strings(cmd.functionNames) // for function listing
-				cmd.functionCompleter.Words = cmd.functionNames
-
-		                cmd.commandCompleter.Words = cmd.commandCompleter.Words[:0]
-		                cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.commandNames...)
-		                //cmd.commandCompleter.Words = append(cmd.commandCompleter.Words, cmd.functionNames...)
-		                sort.Strings(cmd.commandCompleter.Words)
-	*/
 }
 
 func (cmd *Cmd) wordCompleter(line string, pos int) (head string, completions []string, tail string) {
@@ -369,36 +365,31 @@ func (cmd *Cmd) Add(command Command) {
 // Default help command.
 // It lists all available commands or it displays the help for the specified command
 //
-func (cmd *Cmd) Help(line string) (stop bool) {
+func (cmd *Cmd) help(line string) (stop bool) {
 	fmt.Println("")
 
 	if len(line) == 0 {
 		fmt.Println("Available commands (use 'help <topic>'):")
 		fmt.Println("================================================================")
 
+		max := 0
+
+		for _, c := range cmd.commandNames {
+			if len(c) > max {
+				max = len(c)
+			}
+		}
+
 		tp := pretty.NewTabPrinter(8)
+		tp.TabWidth(max + 1)
+
 		for _, c := range cmd.commandNames {
 			tp.Print(c)
 		}
 		tp.Println()
-		/*
-			if len(cmd.functionNames) > 0 {
-				fmt.Println()
-				fmt.Println("Available functions:")
-				fmt.Println("================================================================")
-
-				tp := pretty.NewTabPrinter(8)
-				for _, c := range cmd.functionNames {
-					tp.Print(c)
-				}
-				tp.Println()
-			}
-		*/
 	} else {
 		if c, ok := cmd.Commands[line]; ok {
 			c.HelpFunc()
-			//} else if _, ok := cmd.functions[line]; ok {
-			//		fmt.Println(line, "is a function")
 		} else {
 			fmt.Println("unknown command or function")
 		}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -234,6 +235,18 @@ func (ctx *Context) GetAllVars() (all Arguments) {
 		}
 	}
 
+	return
+}
+
+//
+// GetAllVars return a copy of all variables available at the current scope
+//
+func (ctx *Context) GetVarNames() (names []string) {
+	for _, name := range ctx.GetAllVars() {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
 	return
 }
 

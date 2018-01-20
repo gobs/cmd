@@ -16,6 +16,7 @@ import (
 	"github.com/gobs/args"
 	"github.com/gobs/cmd"
 	"github.com/gobs/cmd/internal"
+	"github.com/gobs/pretty"
 	"github.com/gobs/simplejson"
 	"github.com/gobs/sortedmap"
 )
@@ -27,10 +28,10 @@ type controlFlow struct {
 	ctx *internal.Context
 
 	_oneCmd    func(string) bool
+	_help      func(string) bool
 	_interrupt func(os.Signal) bool
 
-	functions     map[string][]string
-	functionNames []string
+	functions map[string][]string
 
 	interruptCount int
 	inLoop         bool
@@ -87,31 +88,27 @@ var (
 	reVarAssign = regexp.MustCompile(`([\d\w]+)(=(.*))?`)                           // name=value
 )
 
-func (cf *controlFlow) updateCompleter() {
-	cf.functionNames = cf.functionNames[:0]
-	for name := range cf.functions {
-		cf.functionNames = append(cf.functionNames, name)
+func (cf *controlFlow) functionNames() (names []string, max int) {
+	for name, _ := range cf.functions {
+		names = append(names, name)
+		if len(name) > max {
+			max = len(name)
+		}
 	}
-	sort.Strings(cf.functionNames)
-
-	c := cf.cmd.GetCompleter("function")
-	if c == nil {
-		cf.cmd.AddCompleter("function", cmd.NewWordCompleter(cf.functionNames, func(s, l string) bool {
-			return strings.HasPrefix(l, "function ")
-		}))
-	} else {
-		c.(*cmd.WordCompleter).Words = cf.functionNames
-	}
+	sort.Strings(names)
+	return
 }
 
 func (cf *controlFlow) command_function(line string) (stop bool) {
 	// function
 	if line == "" {
-		if len(cf.functions) == 0 {
+		names, _ := cf.functionNames()
+
+		if len(names) == 0 {
 			fmt.Println("no functions")
 		} else {
 			fmt.Println("functions:")
-			for _, fn := range cf.functionNames {
+			for _, fn := range names {
 				fmt.Println(" ", fn)
 			}
 		}
@@ -141,8 +138,6 @@ func (cf *controlFlow) command_function(line string) (stop bool) {
 		if _, ok := cf.functions[fname]; ok {
 			delete(cf.functions, fname)
 			fmt.Println("function", fname, "deleted")
-
-			cf.updateCompleter()
 		} else {
 			fmt.Println("no function", fname)
 		}
@@ -157,7 +152,6 @@ func (cf *controlFlow) command_function(line string) (stop bool) {
 	}
 
 	cf.functions[fname] = lines
-	cf.updateCompleter()
 	return
 }
 
@@ -848,8 +842,36 @@ func (cf *controlFlow) command_load(line string) (stop bool) {
 	return
 }
 
-func (cf *controlFlow) command_stop(_o string) (stop bool) {
+func (cf *controlFlow) command_stop(string) (stop bool) {
 	return true
+}
+
+func (cf *controlFlow) help(line string) (stop bool) {
+	if line == "" {
+		cf._help(line)
+
+		if len(cf.functions) > 0 {
+			fmt.Println()
+			fmt.Println("Available functions:")
+			fmt.Println("================================================================")
+
+			names, max := cf.functionNames()
+
+			tp := pretty.NewTabPrinter(8)
+			tp.TabWidth(max + 1)
+
+			for _, c := range names {
+				tp.Print(c)
+			}
+			tp.Println()
+		}
+	} else if _, ok := cf.functions[line]; ok {
+		fmt.Println(line, "is a function")
+	} else {
+		cf._help(line)
+	}
+
+	return
 }
 
 // XXX: don't expand one-line body of "function" or "repeat"
@@ -871,10 +893,6 @@ func (cf *controlFlow) runFunction(line string) bool {
 		line = cf.expandVariables(line)
 	}
 
-	if cf.cmd.GetBoolVar("echo") {
-		fmt.Println(cf.cmd.Prompt, line)
-	}
-
 	if strings.HasPrefix(line, "@") {
 		line = "load " + line[1:]
 	} else {
@@ -886,6 +904,10 @@ func (cf *controlFlow) runFunction(line string) bool {
 		}
 
 		if function, ok := cf.functions[cname]; ok {
+			if cf.cmd.GetBoolVar("echo") {
+				fmt.Println(cf.cmd.Prompt, line)
+			}
+
 			return cf.cmd.RunBlock(cname, function, args.GetArgs(params))
 		}
 	}
@@ -920,9 +942,19 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 
 	cf.cmd, cf.ctx = c, ctx
 	cf._oneCmd, c.OneCmd = c.OneCmd, cf.runFunction
+	cf._help, c.Help = c.Help, cf.help
 	cf._interrupt, c.Interrupt = c.Interrupt, cf.interruptFunction
 	cf.functions = make(map[string][]string)
-	cf.functionNames = make([]string, 0)
+
+	cf.cmd.AddCompleter("function", cmd.NewWordCompleter(func() (names []string) {
+		for name := range cf.functions {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		return
+	}, func(s, l string) bool {
+		return strings.HasPrefix(l, "function ")
+	}))
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
 	c.Add(cmd.Command{"var", `var [-g|--global] [-r|--remove|-u|--unset] name value`, cf.command_variable, nil})
