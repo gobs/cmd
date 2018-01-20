@@ -242,7 +242,7 @@ func (ctx *Context) GetAllVars() (all Arguments) {
 // GetAllVars return a copy of all variables available at the current scope
 //
 func (ctx *Context) GetVarNames() (names []string) {
-	for _, name := range ctx.GetAllVars() {
+	for name, _ := range ctx.GetAllVars() {
 		names = append(names, name)
 	}
 

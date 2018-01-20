@@ -947,13 +947,15 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	cf.functions = make(map[string][]string)
 
 	cf.cmd.AddCompleter("function", cmd.NewWordCompleter(func() (names []string) {
-		for name := range cf.functions {
-			names = append(names, name)
-		}
-		sort.Strings(names)
+		names, _ = cf.functionNames()
 		return
 	}, func(s, l string) bool {
 		return strings.HasPrefix(l, "function ")
+	}))
+	cf.cmd.AddCompleter("var", cmd.NewWordCompleter(func() []string {
+		return cf.ctx.GetVarNames()
+	}, func(s, l string) bool {
+		return strings.HasPrefix(l, "var ") || strings.HasPrefix(l, "set ")
 	}))
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
