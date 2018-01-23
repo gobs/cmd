@@ -325,6 +325,14 @@ func compare(args []string, num bool) (int, error) {
 	}
 }
 
+func boolValue(v string) bool {
+	if b, err := strconv.ParseBool(v); err == nil {
+		return b
+	}
+
+	return v != ""
+}
+
 func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 	if strings.HasPrefix(line, "(") && strings.HasSuffix(line, ")") { // (condition arg1 arg2...)
 		line = line[1:]
@@ -361,6 +369,28 @@ func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 
 			default:
 				res = true
+			}
+		case "t":
+			switch nargs {
+			case 0:
+				res = false
+
+			case 1:
+				res = boolValue(args[0])
+
+			default:
+				res = true
+			}
+		case "f":
+			switch nargs {
+			case 0:
+				res = true
+
+			case 1:
+				res = !boolValue(args[0])
+
+			default:
+				res = false
 			}
 		case "eq":
 			cres, err = compare(args, false)

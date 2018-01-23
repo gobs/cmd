@@ -125,6 +125,10 @@ All other conditionals are in the form: `(cond arguments...)`:
     (z $var)        # $var is empty
 
     (n $var)        # $var is not empty
+
+    (t $var)        # $var is true (true, 1, not-empty var)
+
+    (f $var)        # $var is false (false, 0, empty empty)
  
     (eq $var val)   # $var == val
 
