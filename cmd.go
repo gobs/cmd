@@ -37,6 +37,9 @@ var (
 	reArg       = regexp.MustCompile(`\$(\w+|\(\w+\)|\(env.\w+\)|[\*#]|\([\*#]\))`) // $var or $(var)
 	reVarAssign = regexp.MustCompile(`([\d\w]+)(=(.*))?`)                           // name=value
 	sep         = string(0xFFFD)                                                    // unicode replacement char
+
+	// NoVar is passed to Command.OnChange to indicate that the variable is not set or needs to be deleted
+	NoVar = &struct{}{}
 )
 
 type arguments = map[string]string
@@ -151,6 +154,14 @@ type Cmd struct {
 	// it should return a list of words that match the input text
 	Complete func(string, string) []string
 
+	// this function is called when a variable change (via set/var command).
+	// it should return the new value to set the variable to (to force type casting)
+	//
+	// oldv will be nil if a new varabile is being created
+	//
+	// newv will be nil if the variable is being deleted
+	OnChange func(name string, oldv, newv interface{}) interface{}
+
 	// this function is called when the user tries to interrupt a running
 	// command. If it returns true, the application will be terminated.
 	Interrupt func(os.Signal) bool
@@ -213,6 +224,9 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	}
 	if cmd.Default == nil {
 		cmd.Default = func(line string) { fmt.Printf("invalid command: %v\n", line) }
+	}
+	if cmd.OnChange == nil {
+		cmd.OnChange = func(name string, oldv, newv interface{}) interface{} { return newv }
 	}
 	if cmd.Interrupt == nil {
 		cmd.Interrupt = func(sig os.Signal) bool { return true }

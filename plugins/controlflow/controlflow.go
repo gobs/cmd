@@ -85,7 +85,7 @@ var (
 	Plugin = &controlFlow{}
 
 	reArg       = regexp.MustCompile(`\$(\w+|\(\w+\)|\(env.\w+\)|[\*#]|\([\*#]\))`) // $var or $(var)
-	reVarAssign = regexp.MustCompile(`([\d\w]+)(=(.*))?`)                           // name=value
+	reVarAssign = regexp.MustCompile(`([\d\w]+)(=(.*))`)                            // name=value
 )
 
 func (cf *controlFlow) functionNames() (names []string, max int) {
@@ -204,13 +204,36 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	// var name value
 	if len(parts) == 2 {
-		cf.ctx.SetVar(name, parts[1], scope)
+		if remove {
+			fmt.Println("invalid use of remove option and value")
+			return
+		}
+
+		var oldv interface{} = cmd.NoVar
+		if cur, ok := cf.ctx.GetVar(name); ok {
+			oldv = cur
+		}
+
+		if newv := cf.cmd.OnChange(name, oldv, parts[1]); newv == cmd.NoVar {
+			cf.ctx.UnsetVar(name, scope)
+		} else {
+			cf.ctx.SetVar(name, newv, scope)
+		}
 		return
 	}
 
 	// var -r name
 	if remove {
-		cf.ctx.UnsetVar(name, scope)
+		var oldv interface{} = cmd.NoVar
+		if cur, ok := cf.ctx.GetVar(name); ok {
+			oldv = cur
+		}
+
+		if newv := cf.cmd.OnChange(name, oldv, cmd.NoVar); newv == cmd.NoVar {
+			cf.ctx.UnsetVar(name, scope)
+		} else {
+			cf.ctx.SetVar(name, newv, scope)
+		}
 		return
 	}
 

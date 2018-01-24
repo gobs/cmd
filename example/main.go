@@ -34,8 +34,40 @@ func CompletionFunction(text, line string) (matches []string) {
 	return
 }
 
+func OnChange(name string, oldv, newv interface{}) interface{} {
+	switch name {
+	case "immutable":
+		if newv == cmd.NoVar {
+			fmt.Println("cannot delete me")
+		} else {
+			fmt.Println("cannot change me")
+		}
+
+		return oldv
+
+	case "boolvalue":
+		if newv != cmd.NoVar {
+			switch newv.(string) {
+			case "0", "false", "False", "off", "OFF":
+				newv = false
+
+			default:
+				newv = true
+			}
+		}
+	}
+
+	fmt.Println("change", name, "from", oldv, "to", newv)
+	return newv
+}
+
 func main() {
-	commander := &cmd.Cmd{HistoryFile: ".rlhistory", Complete: CompletionFunction, EnableShell: true}
+	commander := &cmd.Cmd{
+		HistoryFile: ".rlhistory",
+		Complete:    CompletionFunction,
+		OnChange:    OnChange,
+		EnableShell: true}
+
 	commander.Init(controlflow.Plugin, json.Plugin, stats.Plugin)
 
 	/*
