@@ -534,6 +534,32 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 	var res interface{}
 
 	switch op {
+	case "round": // [up|down] number
+		roundFunction := func(n float64) float64 {
+			f := math.Floor(n)
+			if n-f > 0.5 {
+				return math.Ceil(n)
+			}
+
+			return f
+		}
+
+		if strings.HasPrefix(line, "up ") {
+			roundFunction = math.Ceil
+			line = strings.TrimSpace(line[3:])
+		} else if strings.HasPrefix(line, "down ") {
+			roundFunction = math.Floor
+			line = strings.TrimSpace(line[5:])
+		}
+
+		n, err := parseFloat(line)
+		if err != nil {
+			fmt.Println("not a number")
+			return
+		}
+
+		res = floatString(roundFunction(n))
+
 	case "rand":
 		parts := args.GetArgs(line) // [ max, base ]
 		if len(parts) > 2 {
