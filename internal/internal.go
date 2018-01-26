@@ -76,6 +76,7 @@ func (ctx *Context) SetWordCompleter(completer func(line string, pos int) (head 
 func (ctx *Context) readHistoryFile(history string) {
 	if len(history) == 0 {
 		// no history file
+		return
 	}
 
 	filepath := history // start with current directory
@@ -84,11 +85,20 @@ func (ctx *Context) readHistoryFile(history string) {
 		f.Close()
 
 		ctx.historyFile = filepath
+		return
 	}
 
 	filepath = path.Join(os.Getenv("HOME"), filepath) // then check home directory
 	if f, err := os.Open(filepath); err == nil {
 		ctx.line.ReadHistory(f)
+		f.Close()
+
+		ctx.historyFile = filepath
+		return
+	}
+
+	if f, err := os.Create(filepath); err == nil { // if we can create the history file, set the path
+		// create history file
 		f.Close()
 
 		ctx.historyFile = filepath
