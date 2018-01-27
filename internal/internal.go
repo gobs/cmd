@@ -45,16 +45,17 @@ type Context struct {
 	scopes      []Arguments
 }
 
-func NewContext(history string) *Context {
-	ctx := &Context{}
+func NewContext() *Context {
+	return &Context{}
+}
 
+func (ctx *Context) StartLiner(history string) {
 	ctx.line = liner.NewLiner()
 	ctx.readHistoryFile(history)
 	ctx.ScanLiner()
-	return ctx
 }
 
-func (ctx *Context) Close() {
+func (ctx *Context) StopLiner() {
 	if ctx.line != nil {
 		ctx.writeHistoryFile()
 		ctx.line.Close()

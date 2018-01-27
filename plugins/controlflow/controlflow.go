@@ -81,6 +81,17 @@ func (l *loop) Reset() {
 	l.Index = 0
 }
 
+func parseWait(line string) (wait time.Duration) {
+	w, err := strconv.Atoi(line)
+	if err == nil {
+		wait = time.Duration(w) * time.Second
+	} else {
+		wait, _ = time.ParseDuration(line)
+	}
+
+	return
+}
+
 var (
 	Plugin = &controlFlow{}
 
@@ -97,6 +108,21 @@ func (cf *controlFlow) functionNames() (names []string, max int) {
 	}
 	sort.Strings(names)
 	return
+}
+
+func (cf *controlFlow) sleepInterrupted(wait time.Duration) bool {
+	for ; wait > time.Second; wait -= time.Second {
+		time.Sleep(time.Second)
+		if cf.cmd.Interrupted() {
+			return true
+		}
+	}
+
+	if wait > 0 {
+		time.Sleep(wait)
+	}
+
+	return cf.cmd.Interrupted()
 }
 
 func (cf *controlFlow) command_function(line string) (stop bool) {
@@ -749,12 +775,7 @@ func (cf *controlFlow) command_repeat(line string) (stop bool) {
 				count, _ = strconv.ParseInt(arg[8:], 10, 64)
 			} else if strings.HasPrefix(arg, "--wait=") {
 				arg = cf.expandVariables(arg)
-				w, err := strconv.Atoi(arg[7:])
-				if err == nil {
-					wait = time.Duration(w) * time.Second
-				} else {
-					wait, _ = time.ParseDuration(arg[7:])
-				}
+				wait = parseWait(arg[7:])
 			} else {
 				// unknown option
 				fmt.Println("invalid option", arg)
@@ -780,7 +801,9 @@ func (cf *controlFlow) command_repeat(line string) (stop bool) {
 
 	for l := newLoop(count); l.Next(); {
 		if wait > 0 && !l.First() {
-			time.Sleep(wait)
+			if cf.sleepInterrupted(wait) {
+				break
+			}
 		}
 
 		cf.cmd.SetVar("index", l.Index)
@@ -817,13 +840,7 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 
 			if strings.HasPrefix(arg, "--wait=") {
 				arg = cf.expandVariables(arg)
-
-				w, err := strconv.Atoi(arg[7:])
-				if err == nil {
-					wait = time.Duration(w) * time.Second
-				} else {
-					wait, _ = time.ParseDuration(arg[7:])
-				}
+				wait = parseWait(arg[7:])
 			} else {
 				// unknown option
 				fmt.Println("invalid option", arg)
@@ -860,7 +877,9 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 
 	for i, v := range args {
 		if wait > 0 && i > 0 {
-			time.Sleep(wait)
+			if cf.sleepInterrupted(wait) {
+				break
+			}
 		}
 
 		cf.cmd.SetVar("index", i)
@@ -918,6 +937,12 @@ func (cf *controlFlow) command_load(line string) (stop bool) {
 		}
 	}
 
+	return
+}
+
+func (cf *controlFlow) command_sleep(line string) (stop bool) {
+	wait := parseWait(line)
+	cf.sleepInterrupted(wait)
 	return
 }
 
@@ -1044,6 +1069,7 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command`, cf.command_foreach, nil})
 	c.Add(cmd.Command{"repeat", `repeat [--count=n] [--wait=duration] [--echo] command`, cf.command_repeat, nil})
 	c.Add(cmd.Command{"load", `load script-file`, cf.command_load, nil})
+	c.Add(cmd.Command{"sleep", `sleep duration`, cf.command_sleep, nil})
 	c.Add(cmd.Command{"stop", `stop function or block`, cf.command_stop, nil})
 
 	c.Commands["set"] = c.Commands["var"]

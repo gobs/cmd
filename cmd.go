@@ -234,8 +234,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	if cmd.Help == nil {
 		cmd.Help = cmd.help
 	}
-	cmd.context = internal.NewContext(cmd.HistoryFile)
-	cmd.context.SetWordCompleter(cmd.wordCompleter)
+	cmd.context = internal.NewContext()
 	cmd.context.PushScope(nil, nil)
 
 	cmd.Commands = make(map[string]Command)
@@ -257,6 +256,12 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.SetVar("echo", cmd.Echo)
 	cmd.SetVar("print", !cmd.Silent)
 	cmd.SetVar("timing", cmd.Timing)
+}
+
+func (cmd *Cmd) setInterrupted(interrupted bool) {
+	cmd.Lock()
+	cmd.interrupted = interrupted
+	cmd.Unlock()
 }
 
 func (cmd *Cmd) Interrupted() (interrupted bool) {
@@ -632,11 +637,14 @@ func (cmd *Cmd) CmdLoop() {
 		cmd.ContinuationPrompt = ": "
 	}
 
+	cmd.context.StartLiner(cmd.HistoryFile)
+	cmd.context.SetWordCompleter(cmd.wordCompleter)
+
 	cmd.updateCompleters()
 	cmd.PreLoop()
 
 	defer func() {
-		cmd.context.Close()
+		cmd.context.StopLiner()
 		cmd.PostLoop()
 
 		if os.Stdout != cmd.stdout {
@@ -649,22 +657,17 @@ func (cmd *Cmd) CmdLoop() {
 	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		for {
-			sig := <-sigc
-			cmd.Lock()
-			cmd.interrupted = true
-			cmd.Unlock()
-
+		for sig := range sigc {
+			cmd.setInterrupted(true)
 			cmd.context.ResetTerminal()
-
-			// signal.Stop(sigc)
 
 			if cmd.Interrupt(sig) {
 				// rethrow signal to kill app
+				signal.Stop(sigc)
 				p, _ := os.FindProcess(os.Getpid())
 				p.Signal(sig)
 			} else {
-				// signal.Notify(sigc, os.Interrupt, sig)
+				//signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 			}
 		}
 	}()
@@ -689,10 +692,7 @@ func (cmd *Cmd) runLoop(mainLoop bool) (stop bool) {
 		}
 
 		if mainLoop {
-			cmd.Lock()
-			cmd.interrupted = false
-			cmd.Unlock()
-
+			cmd.setInterrupted(false)
 			cmd.context.UpdateHistory(line) // allow user to recall this line
 		}
 

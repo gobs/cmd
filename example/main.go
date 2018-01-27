@@ -9,9 +9,9 @@ import (
 
 	"fmt"
 	"os"
-	"strconv"
+	//"strconv"
 	"strings"
-	"time"
+	//"time"
 )
 
 var (
@@ -61,12 +61,19 @@ func OnChange(name string, oldv, newv interface{}) interface{} {
 	return newv
 }
 
+func OnInterrupt(sig os.Signal) (quit bool) {
+	fmt.Println("got", sig)
+	return
+}
+
 func main() {
 	commander := &cmd.Cmd{
 		HistoryFile: ".rlhistory",
 		Complete:    CompletionFunction,
 		OnChange:    OnChange,
-		EnableShell: true}
+		Interrupt:   OnInterrupt,
+		EnableShell: true,
+	}
 
 	commander.Init(controlflow.Plugin, json.Plugin, stats.Plugin)
 
@@ -87,22 +94,24 @@ func main() {
 		},
 		nil})
 
-	commander.Add(cmd.Command{
-		"sleep",
-		`sleep for a while`,
-		func(line string) (stop bool) {
-			s := time.Second
+	/*
+		commander.Add(cmd.Command{
+			"sleep",
+			`sleep for a while`,
+			func(line string) (stop bool) {
+				s := time.Second
 
-			if t, err := strconv.Atoi(line); err == nil {
-				s *= time.Duration(t)
-			}
+				if t, err := strconv.Atoi(line); err == nil {
+					s *= time.Duration(t)
+				}
 
-			fmt.Println("sleeping...")
-			time.Sleep(s)
-			return
-		},
-		nil,
-	})
+				fmt.Println("sleeping...")
+				time.Sleep(s)
+				return
+			},
+			nil,
+		})
+	*/
 
 	commander.Add(cmd.Command{
 		Name: ">",
