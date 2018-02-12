@@ -111,7 +111,7 @@ func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error 
 				nearestRank := false
 
 				if len(parts) > 0 {
-					switch parts[1] {
+					switch parts[0] {
 					case "-g", "--geometric":
 						geometric = true
 						parts = parts[1:]
