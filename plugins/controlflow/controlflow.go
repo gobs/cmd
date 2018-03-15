@@ -1063,7 +1063,7 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	}))
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
-	c.Add(cmd.Command{"var", `var [-g|--global] [-r|--remove|-u|--unset] name value`, cf.command_variable, nil})
+	c.Add(cmd.Command{"var", `var [-g|--global|--parent] [-r|--remove|-u|--unset] name value`, cf.command_variable, nil})
 	c.Add(cmd.Command{"if", `if (condition) command`, cf.command_conditional, nil})
 	c.Add(cmd.Command{"expr", `expr operator operands...`, cf.command_expression, nil})
 	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command`, cf.command_foreach, nil})
