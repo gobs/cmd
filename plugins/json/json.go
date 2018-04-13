@@ -49,7 +49,7 @@ func parseValue(v string) (interface{}, error) {
 	case strings.HasPrefix(v, "{") || strings.HasPrefix(v, "["):
 		j, err := simplejson.LoadString(v)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing %q", v)
+			return nil, fmt.Errorf("error parsing |%v|", v)
 		} else {
 			return j.Data(), nil
 		}
@@ -105,7 +105,7 @@ func StringJson(v interface{}, unq bool) (ret string) {
 type map_type = map[string]interface{}
 type array_type = []interface{}
 
-func merge_maps(dst, src map_type) {
+func merge_maps(dst, src map_type) map_type {
 	for k, vs := range src {
 		if vd, ok := dst[k]; ok {
 			if ms, ok := vs.(map_type); ok {
@@ -116,6 +116,16 @@ func merge_maps(dst, src map_type) {
 			}
 		}
 		dst[k] = vs
+	}
+
+	return dst
+}
+
+func merge_array(dst array_type, src interface{}) array_type {
+	if a, ok := src.(array_type); ok {
+		return append(dst, a...)
+	} else {
+		return append(dst, src)
 	}
 }
 
@@ -142,83 +152,65 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 		`
                 json field1=value1 field2=value2...       // json object
                 json {"name1":"value1", "name2":"value2"}
-                json [value1 value2...]                   // json array
                 json [value1, value2...]`,
 		func(line string) (stop bool) {
 			var res interface{}
 
-			if strings.HasPrefix(line, "{") { // assume is already a JSON object
-				parts := args.GetArgsN(line, 2)
+			for len(line) > 0 {
+				jbody, rest, err := simplejson.LoadPartialString(line)
+				if err == nil {
+					switch v := res.(type) {
+					case nil: // first time
+						res = jbody.Data()
 
-				if jbody, err := simplejson.LoadString(parts[0]); err != nil {
-					setError(fmt.Errorf("error parsing object %q", parts[0]))
-					return
-				} else {
-					res = jbody.Data()
-				}
-
-				if len(parts) == 2 { // merge operation
-					// expect a json object for now
-					if jbody, err := simplejson.LoadString(parts[1]); err != nil {
-						setError(fmt.Errorf("error parsing object %q", parts[1]))
-						return
-					} else {
-						dst := res.(map[string]interface{})
+					case map_type:
 						src, err := jbody.Map()
-
 						if err != nil {
 							setError(fmt.Errorf("merge source should be a map"))
 							return
 						}
+						res = merge_maps(v, src)
 
-						merge_maps(dst, src)
-						res = dst
+					case array_type:
+						res = merge_array(v, jbody.Data())
 					}
-				}
-			} else if strings.HasPrefix(line, "[") { // could be a JSON array
+				} else {
+					args := args.GetArgsN(line, 2, args.InfieldBrackets())
 
-				if jbody, err := simplejson.LoadString(line); err == nil {
-					res = jbody.Data()
-				} else { // try a sequence of values (that need to be parsed)
-					line = strings.TrimPrefix(line, "[")
-					line = strings.TrimSuffix(line, "]")
-					line = strings.TrimSpace(line)
-
-					var ares []interface{}
-
-					for _, f := range args.GetArgs(line) {
-						v, err := parseValue(f)
+					matches := reFieldValue.FindStringSubmatch(args[0])
+					if len(matches) > 0 { // [field=value field =value value]
+						name, svalue := matches[1], matches[3]
+						value, err := parseValue(svalue)
 						if err != nil {
 							setError(err)
 							return
 						}
 
-						ares = append(ares, v)
-					}
+						mval := map[string]interface{}{name: value}
 
-					res = ares
-				}
-			} else { // a sequence of name=value pairs
-				var err error
-				mres := map[string]interface{}{}
+						switch v := res.(type) {
+						case nil: // first time
+							res = mval
 
-				for _, f := range args.GetArgs(line, args.InfieldBrackets()) {
-					matches := reFieldValue.FindStringSubmatch(f)
-					if len(matches) > 0 { // [field=value field =value value]
-						name, value := matches[1], matches[3]
-						mres[name], err = parseValue(value)
+						case map_type:
+							res = merge_maps(v, mval)
 
-						if err != nil {
-							setError(err)
-							return
+						case array_type:
+							res = merge_array(v, mval)
 						}
 					} else {
-						setError(fmt.Errorf("invalid name=value pair: %v", f))
+						setError(fmt.Errorf("invalid name=value pair: %v", args[0]))
 						return
+					}
+
+					if len(args) == 2 {
+						rest = args[1]
+					} else {
+						break
 					}
 				}
 
-				res = mres
+				line = strings.TrimSpace(rest)
 			}
 
 			setJson(res)
