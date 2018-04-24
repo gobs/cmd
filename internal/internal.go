@@ -42,6 +42,7 @@ type Context struct {
 	scanner BasicScanner // file based line reader
 
 	historyFile string
+	hasHistory  bool
 	scopes      []Arguments
 }
 
@@ -65,6 +66,7 @@ func (ctx *Context) StopLiner() {
 func (ctx *Context) UpdateHistory(line string) {
 	if ctx.line != nil {
 		ctx.line.AppendHistory(line)
+		ctx.hasHistory = true
 	}
 }
 
@@ -107,8 +109,8 @@ func (ctx *Context) readHistoryFile(history string) {
 }
 
 func (ctx *Context) writeHistoryFile() {
-	if len(ctx.historyFile) == 0 {
-		// no history file
+	if len(ctx.historyFile) == 0 || !ctx.hasHistory {
+		// no history file or no changes
 		return
 	}
 
