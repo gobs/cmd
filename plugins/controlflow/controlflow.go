@@ -711,7 +711,21 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 
 		res = line[start:end]
 
+	case "split":
+		parts := args.GetArgsN(line, 2) // [ sep, line ]
+		if len(parts) == 0 {
+			fmt.Println("usage: split sep line")
+			return
+		}
+
+		if len(parts) == 1 { // empty line ?
+			res = []string{}
+		} else {
+			res = fmt.Sprintf("%q", strings.Split(parts[1], parts[0]))
+		}
+
 	default:
+
 		fmt.Println("invalid operator:", op)
 		return
 	}
