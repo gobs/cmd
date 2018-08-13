@@ -719,9 +719,39 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 		}
 
 		if len(parts) == 1 { // empty line ?
-			res = []string{}
+			res = ""
 		} else {
 			res = fmt.Sprintf("%q", strings.Split(parts[1], parts[0]))
+		}
+
+	case "re", "regex", "regexp":
+		parts := args.GetArgsN(line, 2) // [ regexp, line ]
+		if len(parts) == 0 {
+			fmt.Println("usage: re expr line")
+			return
+		}
+
+		if len(parts) == 1 { // empty line ?
+			res = ""
+			break
+		}
+
+		re, err := regexp.Compile(parts[0])
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		parts = re.FindStringSubmatch(parts[1])
+		switch len(parts) {
+		case 0: // no results
+			res = ""
+		case 1: // no submatches
+			res = parts[0]
+		case 2: // one submatch
+			res = parts[1]
+		default:
+			res = fmt.Sprintf("%q", parts[1:])
 		}
 
 	default:
