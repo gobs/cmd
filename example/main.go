@@ -141,7 +141,9 @@ func main() {
 
 	if len(os.Args) > 1 {
 		cmd := strings.Join(os.Args[1:], " ")
-		commander.OneCmd(cmd)
+		if commander.OneCmd(cmd) {
+			return
+		}
 	}
 
 	commander.CmdLoop()

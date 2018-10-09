@@ -245,7 +245,7 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
 	cmd.Add(Command{"time", `time [starttime]`, cmd.command_time, nil})
 	cmd.Add(Command{"output", `output [filename|--]`, cmd.command_output, nil})
-	cmd.Add(Command{"exit", `exit program`, command_exit, nil})
+	cmd.Add(Command{"exit", `exit program`, cmd.command_exit, nil})
 
 	for _, p := range plugins {
 		if err := p.PluginInit(cmd, cmd.context); err != nil {
@@ -577,8 +577,10 @@ func (cmd *Cmd) command_output(line string) (stop bool) {
 	return
 }
 
-func command_exit(line string) (stop bool) {
-	fmt.Println("goodbye!")
+func (cmd *Cmd) command_exit(line string) (stop bool) {
+	if !cmd.SilentResult() {
+		fmt.Println("goodbye!")
+	}
 	return true
 }
 
@@ -748,6 +750,22 @@ func (cmd *Cmd) SetVar(k string, v interface{}) {
 //
 func (cmd *Cmd) UnsetVar(k string) {
 	cmd.context.UnsetVar(k, internal.LocalScope)
+}
+
+//
+// ChangeVar sets a variable in the current scope
+// and calls the OnChange method
+//
+func (cmd *Cmd) ChangeVar(k string, v interface{}) {
+	var oldv interface{} = NoVar
+	if cur, ok := cmd.context.GetVar(k); ok {
+		oldv = cur
+	}
+	if newv := cmd.OnChange(k, oldv, v); newv == NoVar {
+		cmd.context.UnsetVar(k, internal.LocalScope)
+	} else {
+		cmd.context.SetVar(k, newv, internal.LocalScope)
+	}
 }
 
 //

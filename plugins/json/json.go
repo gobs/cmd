@@ -220,7 +220,7 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 
 	commander.Add(cmd.Command{
 		"jsonpath",
-		`jsonpath [-e] [-c] path {json}`,
+		`jsonpath [-v] [-e] [-c] path {json}`,
 		func(line string) (stop bool) {
 			var joptions jsonpath.ProcessOptions
 			var verbose bool

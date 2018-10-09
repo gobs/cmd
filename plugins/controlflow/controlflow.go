@@ -976,7 +976,8 @@ func (cf *controlFlow) command_load(line string) (stop bool) {
 		}
 
 		// fmt.Println("load-one", line)
-		if cf.cmd.OneCmd(line) || cf.cmd.Interrupted() {
+		stop = cf.cmd.OneCmd(line)
+		if stop || cf.cmd.Interrupted() {
 			break
 		}
 	}
