@@ -387,7 +387,14 @@ func (cmd *Cmd) Add(command Command) {
 func (cmd *Cmd) help(line string) (stop bool) {
 	fmt.Println("")
 
-	if len(line) == 0 {
+	if line == "--all" {
+		fmt.Println("Available commands (use 'help <topic>'):")
+		fmt.Println("================================================================")
+		for _, c := range cmd.commandNames {
+			fmt.Printf("%v: ", c)
+			cmd.Commands[c].HelpFunc()
+		}
+	} else if len(line) == 0 {
 		fmt.Println("Available commands (use 'help <topic>'):")
 		fmt.Println("================================================================")
 
