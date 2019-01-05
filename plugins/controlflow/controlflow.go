@@ -277,6 +277,8 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 }
 
 func (cf *controlFlow) expandVariables(line string) string {
+	line = strings.Replace(line, "$$", "💲", -1) // replace $$ with fat $
+
 	for {
 		// fmt.Println("before expand:", line)
 		found := false
@@ -302,6 +304,7 @@ func (cf *controlFlow) expandVariables(line string) string {
 		}
 	}
 
+	line = strings.Replace(line, "💲", "$", -1) // restore and unescape
 	return line
 }
 
