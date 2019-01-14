@@ -263,6 +263,35 @@ func (ctx *Context) GetVarNames() (names []string) {
 	return
 }
 
+func (ctx *Context) ShiftArgs(n int) {
+	vars := ctx.GetScope(LocalScope)
+	if _, ok := vars["#"]; !ok {
+		return // no arguments
+	}
+
+	nargs, _ := strconv.Atoi(vars["#"])
+	if n > nargs {
+		return // don't touch arguments
+	}
+
+	var args []string
+
+	for i := 1; i < nargs; i++ {
+		ki := strconv.Itoa(i)
+		kn := strconv.Itoa(i + n)
+
+		if i+n > nargs {
+			delete(vars, ki)
+		} else {
+			vars[ki] = vars[kn]
+			args = append(args, vars[kn])
+		}
+	}
+
+	vars["*"] = strings.Join(args, " ")
+	vars["#"] = strconv.Itoa(len(args))
+}
+
 //
 // A basic scanner interface
 //

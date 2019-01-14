@@ -276,6 +276,27 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 	return
 }
 
+func (cf *controlFlow) command_shift(line string) (stop bool) {
+	start := 1
+	args := args.GetArgs(line)
+	if len(args) > 1 {
+		fmt.Println("too many arguments")
+		return
+	}
+
+	if len(args) == 1 {
+		if n, err := parseInt(args[0]); err != nil {
+			fmt.Println(err)
+			return
+		} else {
+			start = n
+		}
+	}
+
+	cf.ctx.ShiftArgs(start)
+	return
+}
+
 func (cf *controlFlow) expandVariables(line string) string {
 	line = strings.Replace(line, "$$", "💲", -1) // replace $$ with fat $
 
@@ -1112,6 +1133,7 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
 	c.Add(cmd.Command{"var", `var [-g|--global|--parent] [-r|--remove|-u|--unset] name value`, cf.command_variable, nil})
+	c.Add(cmd.Command{"shift", `shift [n]`, cf.command_shift, nil})
 	c.Add(cmd.Command{"if", `if (condition) command`, cf.command_conditional, nil})
 	c.Add(cmd.Command{"expr", `expr operator operands...`, cf.command_expression, nil})
 	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command`, cf.command_foreach, nil})
