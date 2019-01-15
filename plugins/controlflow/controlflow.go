@@ -365,9 +365,9 @@ func (cf *controlFlow) command_conditional(line string) (stop bool) {
 	}
 
 	if res {
-		stop = cf.cmd.RunBlock("", trueBlock, nil)
+		stop = cf.cmd.RunBlock("", trueBlock, nil, false)
 	} else {
-		stop = cf.cmd.RunBlock("", falseBlock, nil)
+		stop = cf.cmd.RunBlock("", falseBlock, nil, false)
 	}
 
 	return
@@ -875,7 +875,7 @@ func (cf *controlFlow) command_repeat(line string) (stop bool) {
 		}
 
 		cf.cmd.SetVar("index", l.Index)
-		if cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted() {
+		if cf.cmd.RunBlock("", block, nil, true) || cf.cmd.Interrupted() {
 			break
 		}
 	}
@@ -952,7 +952,7 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 
 		cf.cmd.SetVar("index", i)
 		cf.cmd.SetVar("item", v)
-		if cf.cmd.RunBlock("", block, nil) || cf.cmd.Interrupted() {
+		if cf.cmd.RunBlock("", block, nil, true) || cf.cmd.Interrupted() {
 			break
 		}
 	}
@@ -1081,7 +1081,7 @@ func (cf *controlFlow) runFunction(line string) bool {
 				fmt.Println(cf.cmd.Prompt, line)
 			}
 
-			return cf.cmd.RunBlock(cname, function, args.GetArgs(params))
+			return cf.cmd.RunBlock(cname, function, args.GetArgs(params), true)
 		}
 	}
 

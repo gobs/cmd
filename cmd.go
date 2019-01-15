@@ -727,15 +727,19 @@ func (cmd *Cmd) runLoop(mainLoop bool) (stop bool) {
 // Note: this is public because it's needed by the ControlFlow plugin (and can't be in interal
 // because of circular dependencies). It shouldn't be used by end-user applications.
 //
-func (cmd *Cmd) RunBlock(name string, body []string, args []string) (stop bool) {
+func (cmd *Cmd) RunBlock(name string, body []string, args []string, newscope bool) (stop bool) {
 	if args != nil {
 		args = append([]string{name}, args...)
 	}
 
 	prev := cmd.context.ScanBlock(body)
-	cmd.context.PushScope(nil, args)
+        if newscope {
+	    cmd.context.PushScope(nil, args)
+        }
 	shouldStop := cmd.runLoop(false)
-	cmd.context.PopScope()
+        if newscope {
+	    cmd.context.PopScope()
+        }
 	cmd.context.SetScanner(prev)
 
 	if name == "" { // if stop is called in an unamed block (i.e. not a function) we should really stop
