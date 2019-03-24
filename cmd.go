@@ -733,13 +733,13 @@ func (cmd *Cmd) RunBlock(name string, body []string, args []string, newscope boo
 	}
 
 	prev := cmd.context.ScanBlock(body)
-        if newscope {
-	    cmd.context.PushScope(nil, args)
-        }
+	if newscope {
+		cmd.context.PushScope(nil, args)
+	}
 	shouldStop := cmd.runLoop(false)
-        if newscope {
-	    cmd.context.PopScope()
-        }
+	if newscope {
+		cmd.context.PopScope()
+	}
 	cmd.context.SetScanner(prev)
 
 	if name == "" { // if stop is called in an unamed block (i.e. not a function) we should really stop
