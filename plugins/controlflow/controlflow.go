@@ -778,6 +778,23 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 			res = fmt.Sprintf("%q", parts[1:])
 		}
 
+	case "or":
+		parts := args.GetArgsN(line, 2) // [ head, remain ]
+		switch len(parts) {
+		case 0:
+			res = ""
+
+		case 1:
+			res = parts[0]
+
+		case 2:
+			if len(parts[0]) > 0 {
+				res = parts[0]
+			} else {
+				res = parts[1]
+			}
+		}
+
 	default:
 
 		fmt.Println("invalid operator:", op)
