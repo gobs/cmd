@@ -369,6 +369,44 @@ func shellExec(command string) {
 	}
 }
 
+//
+// execute shell command and pipe input and/or output
+//
+func pipeExec(command string) *os.File {
+	args := args.GetArgs(command)
+	if len(args) < 1 {
+		fmt.Println("No command to exec")
+	} else {
+		if strings.ContainsAny(command, "$*~") {
+			if _, err := exec.LookPath("sh"); err == nil {
+				args = []string{"sh", "-c", command}
+			}
+		}
+		cmd := exec.Command(args[0])
+		cmd.Args = args
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			fmt.Println("cannot create pipe:", err)
+			return nil
+		}
+
+		cmd.Stdin = pr
+
+		go func() {
+			if err := cmd.Run(); err != nil {
+				fmt.Println(err)
+			}
+		}()
+
+		return pw
+	}
+
+	return nil
+}
+
 // Add a command to the command interpreter.
 // Overrides a command with the same name, if there was one
 //
@@ -530,15 +568,9 @@ func (cmd *Cmd) command_output(line string) (stop bool) {
 			os.Stdout = cmd.stdout
 		} else if strings.HasPrefix(line, "|") { // pipe
 			line = strings.TrimSpace(line[1:])
-			f, err := os.Create(line)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				return
-			}
 
-			r, w, err := os.Pipe()
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "can't create pipe:", err)
+			w := pipeExec(line)
+			if w == nil {
 				return
 			}
 
@@ -547,24 +579,6 @@ func (cmd *Cmd) command_output(line string) (stop bool) {
 			}
 
 			os.Stdout = w
-			go func() {
-				b := make([]byte, 1024)
-
-				for {
-					n, err := r.Read(b)
-					if err == io.EOF {
-						break
-					} else if err != nil {
-						fmt.Fprintln(os.Stderr, "can't read pipe:", err)
-						break
-					}
-
-					cmd.stdout.Write(b[:n])
-					f.Write(b[:n])
-				}
-
-				r.Close()
-			}()
 		} else {
 			f, err := os.Create(line)
 			if err != nil {
