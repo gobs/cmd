@@ -237,6 +237,8 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	cmd.context = internal.NewContext()
 	cmd.context.PushScope(nil, nil)
 
+	cmd.stdout = os.Stdout
+
 	cmd.Commands = make(map[string]Command)
 	cmd.Add(Command{"help", `list available commands`, func(line string) bool {
 		return cmd.Help(line)
@@ -563,9 +565,11 @@ func (cmd *Cmd) command_time(line string) (stop bool) {
 
 func (cmd *Cmd) command_output(line string) (stop bool) {
 	if line != "" {
-		if line == "--" && cmd.stdout != nil && os.Stdout != cmd.stdout { // default stdout
-			os.Stdout.Close()
-			os.Stdout = cmd.stdout
+		if line == "--" {
+			if cmd.stdout != nil && os.Stdout != cmd.stdout { // default stdout
+				os.Stdout.Close()
+				os.Stdout = cmd.stdout
+			}
 		} else if strings.HasPrefix(line, "|") { // pipe
 			line = strings.TrimSpace(line[1:])
 
@@ -576,6 +580,8 @@ func (cmd *Cmd) command_output(line string) (stop bool) {
 
 			if cmd.stdout == nil {
 				cmd.stdout = os.Stdout
+			} else if cmd.stdout != os.Stdout {
+				os.Stdout.Close()
 			}
 
 			os.Stdout = w
@@ -588,6 +594,8 @@ func (cmd *Cmd) command_output(line string) (stop bool) {
 
 			if cmd.stdout == nil {
 				cmd.stdout = os.Stdout
+			} else if cmd.stdout != os.Stdout {
+				os.Stdout.Close()
 			}
 
 			os.Stdout = f
