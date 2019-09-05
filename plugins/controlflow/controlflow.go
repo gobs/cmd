@@ -967,6 +967,17 @@ func (cf *controlFlow) command_foreach(line string) (stop bool) {
 			}
 		}
 
+		// here we should convert complex types to a meaningful
+		// string representation (i.e. json)
+
+		switch t := v.(type) {
+		case map[string]interface{}:
+			v, _ = simplejson.DumpString(t)
+
+		case []interface{}:
+			v, _ = simplejson.DumpString(t)
+		}
+
 		cf.cmd.SetVar("index", i)
 		cf.cmd.SetVar("item", v)
 		if cf.cmd.RunBlock("", block, nil, true) || cf.cmd.Interrupted() {

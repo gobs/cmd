@@ -15,6 +15,9 @@ import (
 
 type Arguments = map[string]string
 
+type Dict = map[string]interface{}
+type List = []interface{}
+
 type Scope int
 
 const (
@@ -195,6 +198,21 @@ func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 			i -= 1 // index of parent scope
 		}
 	}
+
+	//
+	// here we should convert complex types to a meaningful
+	// string representation (i.e. json)
+	//
+
+	/*
+	   switch t := v.(type) {
+	   case Dict:
+	       ;
+
+	   case Arrat:
+	       ;
+	   }
+	*/
 
 	ctx.scopes[i][k] = fmt.Sprintf("%v", v)
 }
