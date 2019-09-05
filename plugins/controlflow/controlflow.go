@@ -684,6 +684,9 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 	case "lower":
 		res = strings.ToLower(line)
 
+	case "trim":
+		res = strings.TrimSpace(line)
+
 	case "substr":
 		parts := args.GetArgsN(line, 2) // [ start:end, line ]
 		if len(parts) == 0 {
