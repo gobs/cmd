@@ -152,9 +152,19 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 		`
                 json field1=value1 field2=value2...       // json object
                 json {"name1":"value1", "name2":"value2"}
-                json [value1, value2...]`,
+                json [value1, value2...]
+                json -a|--array value1 value2 value3`,
 		func(line string) (stop bool) {
 			var res interface{}
+			var ares []interface{}
+
+			if strings.HasPrefix(line, "-a ") {
+				line = strings.TrimSpace(line[3:])
+				ares = []interface{}{}
+			} else if strings.HasPrefix(line, "--array ") {
+				line = strings.TrimSpace(line[8:])
+				ares = []interface{}{}
+			}
 
 			for len(line) > 0 {
 				jbody, rest, err := simplejson.LoadPartialString(line)
@@ -211,9 +221,17 @@ func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 				}
 
 				line = strings.TrimSpace(rest)
+				if ares != nil {
+					ares = append(ares, res)
+					res = nil
+				}
 			}
 
-			setJson(res)
+			if ares == nil {
+				setJson(res)
+			} else {
+				setJson(ares)
+			}
 			return
 		},
 		nil})
