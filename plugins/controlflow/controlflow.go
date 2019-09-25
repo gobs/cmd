@@ -572,10 +572,23 @@ func floatString(v float64) string {
 	return strings.TrimSuffix(s, ".000")
 }
 
+const expr_help = `expr operator operands...
+
+operators:
+  +|-|*|/ number number
+  round [up|down] number
+  rand max [base]
+  upper string
+  lower string
+  trim string
+  substr start:end string
+  re|regex|regexp expr string
+  or first rest`
+
 func (cf *controlFlow) command_expression(line string) (stop bool) {
 	parts := args.GetArgsN(line, 2) // [ op, arg1 ]
 	if len(parts) != 2 {
-		fmt.Println("missing argument(s)")
+		fmt.Println("usage:", expr_help)
 		return
 	}
 
@@ -1166,18 +1179,7 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	c.Add(cmd.Command{"var", `var [-g|--global|--parent] [-r|--remove|-u|--unset] name value`, cf.command_variable, nil})
 	c.Add(cmd.Command{"shift", `shift [n]`, cf.command_shift, nil})
 	c.Add(cmd.Command{"if", `if (condition) command`, cf.command_conditional, nil})
-	c.Add(cmd.Command{"expr", `expr operator operands...
-
-operators:
-  +|-|*|/ number number
-  round [up|down] number
-  rand max [base]
-  upper string
-  lower string
-  trim string
-  substr start:end string
-  re|regex|regexp expr string
-  or first rest`, cf.command_expression, nil})
+	c.Add(cmd.Command{"expr", expr_help, cf.command_expression, nil})
 	c.Add(cmd.Command{"foreach", `foreach [--wait=duration] (items...) command`, cf.command_foreach, nil})
 	c.Add(cmd.Command{"repeat", `repeat [--count=n] [--wait=duration] [--echo] command`, cf.command_repeat, nil})
 	c.Add(cmd.Command{"load", `load script-file`, cf.command_load, nil})
