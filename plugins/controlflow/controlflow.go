@@ -1038,7 +1038,7 @@ func (cf *controlFlow) command_load(line string) (stop bool) {
 			break
 		}
 
-		if strings.HasPrefix(line, "#") || line == "" {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
 			cf.cmd.EmptyLine()
 			continue
 		}

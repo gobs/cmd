@@ -717,7 +717,7 @@ func (cmd *Cmd) runLoop(mainLoop bool) (stop bool) {
 			break
 		}
 
-		if strings.HasPrefix(line, "#") || line == "" {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
 			cmd.EmptyLine()
 			continue
 		}
