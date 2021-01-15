@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/peterh/liner"
 )
@@ -47,6 +48,8 @@ type Context struct {
 	historyFile string
 	hasHistory  bool
 	scopes      []Arguments
+
+	sync.Mutex
 }
 
 func NewContext() *Context {
@@ -54,12 +57,17 @@ func NewContext() *Context {
 }
 
 func (ctx *Context) StartLiner(history string) {
+	ctx.Lock()
 	ctx.line = liner.NewLiner()
 	ctx.readHistoryFile(history)
 	ctx.ScanLiner()
+	ctx.Unlock()
 }
 
 func (ctx *Context) StopLiner() {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	if ctx.line != nil {
 		ctx.writeHistoryFile()
 		ctx.line.Close()
@@ -67,6 +75,9 @@ func (ctx *Context) StopLiner() {
 }
 
 func (ctx *Context) UpdateHistory(line string) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	if ctx.line != nil {
 		ctx.line.AppendHistory(line)
 		ctx.hasHistory = true
@@ -127,6 +138,9 @@ func (ctx *Context) writeHistoryFile() {
 // PushScope pushes a new scope for variables, with the associated dvalues
 //
 func (ctx *Context) PushScope(vars map[string]string, args []string) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	scope := make(Arguments)
 
 	for k, v := range vars {
@@ -150,6 +164,9 @@ func (ctx *Context) PushScope(vars map[string]string, args []string) {
 // PopScope removes the current scope, restoring the previous one
 //
 func (ctx *Context) PopScope() {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	l := len(ctx.scopes)
 	if l == 0 {
 		panic("no scopes")
@@ -162,6 +179,9 @@ func (ctx *Context) PopScope() {
 // GetScope returns the variable sets for the specified scope
 //
 func (ctx *Context) GetScope(scope Scope) Arguments {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	i := len(ctx.scopes) - 1 // index of local scope
 	if i < 0 {
 		panic("no scopes")
@@ -184,6 +204,9 @@ func (ctx *Context) GetScope(scope Scope) Arguments {
 // SetVar sets a variable in the current, parent or global scope
 //
 func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	i := len(ctx.scopes) - 1 // index of local scope
 	if i < 0 {
 		panic("no scopes")
@@ -194,8 +217,16 @@ func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 		i = 0 // index of global scope
 
 	case ParentScope:
-		if i > 0 {
-			i -= 1 // index of parent scope
+		save := i
+
+		for ; i > 0; i-- {
+			if _, ok := ctx.scopes[i][k]; ok { // find where the variable is defined
+				break
+			}
+		}
+
+		if i < 0 {
+			i = save
 		}
 	}
 
@@ -209,7 +240,7 @@ func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 	   case Dict:
 	       ;
 
-	   case Arrat:
+	   case Array:
 	       ;
 	   }
 	*/
@@ -221,6 +252,9 @@ func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 // UnsetVar removes a variable from the current, parent or global scope
 //
 func (ctx *Context) UnsetVar(k string, scope Scope) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	i := len(ctx.scopes) - 1 // index of local scope
 	if i < 0 {
 		panic("no scopes")
@@ -258,6 +292,9 @@ func (ctx *Context) GetVar(k string) (string, bool) {
 // GetAllVars return a copy of all variables available at the current scope
 //
 func (ctx *Context) GetAllVars() (all Arguments) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	all = Arguments{}
 
 	for _, scope := range ctx.scopes {
