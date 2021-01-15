@@ -166,6 +166,10 @@ type Cmd struct {
 	// command. If it returns true, the application will be terminated.
 	Interrupt func(os.Signal) bool
 
+	// this function is called when recovering from a panic.
+	// If it returns true, the application will be terminated.
+	Recover func(interface{}) bool
+
 	// if true, enable shell commands
 	EnableShell bool
 
@@ -230,6 +234,9 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 	}
 	if cmd.Interrupt == nil {
 		cmd.Interrupt = func(sig os.Signal) bool { return true }
+	}
+	if cmd.Recover == nil {
+		cmd.Recover = func(r interface{}) bool { return true }
 	}
 	if cmd.Help == nil {
 		cmd.Help = cmd.help
@@ -617,6 +624,18 @@ func (cmd *Cmd) command_exit(line string) (stop bool) {
 // This method executes one command
 //
 func (cmd *Cmd) oneCmd(line string) (stop bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			/*
+			   if !cmd.SilentResult() {
+			       fmt.Println("recovered:", r)
+			   }
+			*/
+
+			stop = cmd.Recover(r)
+		}
+	}()
+
 	if cmd.GetBoolVar("timing") {
 		start := time.Now()
 		defer func() {

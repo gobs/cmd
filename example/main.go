@@ -66,12 +66,20 @@ func OnInterrupt(sig os.Signal) (quit bool) {
 	return
 }
 
+var recoverQuit = false
+
+func OnRecover(r interface{}) bool {
+	fmt.Println("recovering from", r)
+	return recoverQuit
+}
+
 func main() {
 	commander := &cmd.Cmd{
 		HistoryFile: ".rlhistory",
 		Complete:    CompletionFunction,
 		OnChange:    OnChange,
 		Interrupt:   OnInterrupt,
+		Recover:     OnRecover,
 		EnableShell: true,
 	}
 
@@ -136,6 +144,19 @@ func main() {
 		Help: "parse args",
 		Call: func(line string) (stop bool) {
 			fmt.Printf("%q\n", args.GetArgs(line))
+			return
+		}})
+
+	commander.Add(cmd.Command{
+		Name: "panic",
+		Help: "panic [-q] message: panic (and test recover)",
+		Call: func(line string) (stop bool) {
+			if line == "-q" || strings.HasPrefix(line, "-q ") {
+				recoverQuit = true
+				line = strings.TrimSpace(line[2:])
+			}
+
+			panic(line)
 			return
 		}})
 
