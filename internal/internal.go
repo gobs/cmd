@@ -279,6 +279,9 @@ func (ctx *Context) UnsetVar(k string, scope Scope) {
 // GetVar return the value of the specified variable from the closest scope
 //
 func (ctx *Context) GetVar(k string) (string, bool) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	for i := len(ctx.scopes) - 1; i >= 0; i-- {
 		if v, ok := ctx.scopes[i][k]; ok {
 			return v, true
