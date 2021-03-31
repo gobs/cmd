@@ -460,12 +460,10 @@ func (cmd *Cmd) help(line string) (stop bool) {
 			tp.Print(c)
 		}
 		tp.Println()
+	} else if c, ok := cmd.Commands[line]; ok {
+		c.HelpFunc()
 	} else {
-		if c, ok := cmd.Commands[line]; ok {
-			c.HelpFunc()
-		} else {
-			fmt.Println("unknown command or function")
-		}
+		fmt.Println("unknown command or function")
 	}
 
 	fmt.Println("")
@@ -516,24 +514,22 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 
 	if strings.HasPrefix(line, "go ") {
 		fmt.Println("Don't go go me!")
+	} else if cmd.waitGroup == nil {
+		go cmd.OneCmd(line)
 	} else {
-		if cmd.waitGroup == nil {
-			go cmd.OneCmd(line)
-		} else {
-			if cmd.waitMax > 0 {
-				if cmd.waitCount >= cmd.waitMax {
-					cmd.waitGroup.Wait()
-					cmd.waitCount = 0
-				}
+		if cmd.waitMax > 0 {
+			if cmd.waitCount >= cmd.waitMax {
+				cmd.waitGroup.Wait()
+				cmd.waitCount = 0
 			}
-
-			cmd.waitCount++
-			cmd.waitGroup.Add(1)
-			go func() {
-				defer cmd.waitGroup.Done()
-				cmd.OneCmd(line)
-			}()
 		}
+
+		cmd.waitCount++
+		cmd.waitGroup.Add(1)
+		go func() {
+			defer cmd.waitGroup.Done()
+			cmd.OneCmd(line)
+		}()
 	}
 
 	return
@@ -555,8 +551,7 @@ func (cmd *Cmd) command_time(line string) (stop bool) {
 
 		cmd.SetVar("time", t)
 	} else {
-		t, err := time.Parse(time.RFC3339, line)
-		if err != nil {
+		if t, err := time.Parse(time.RFC3339, line); err != nil {
 			fmt.Println("invalid start time")
 		} else {
 			d := time.Since(t).Round(time.Millisecond)
