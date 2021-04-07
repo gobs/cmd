@@ -60,8 +60,8 @@ func (ctx *Context) StartLiner(history string) {
 	ctx.Lock()
 	ctx.line = liner.NewLiner()
 	ctx.readHistoryFile(history)
-	ctx.ScanLiner()
 	ctx.Unlock()
+	ctx.ScanLiner()
 }
 
 func (ctx *Context) StopLiner() {
@@ -428,6 +428,9 @@ func (s *ScanReader) Err() error {
 // SetScanner sets the current scanner and return the previos one
 //
 func (ctx *Context) SetScanner(curr BasicScanner) (prev BasicScanner) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
 	prev, ctx.scanner = ctx.scanner, curr
 	return
 }
@@ -454,10 +457,18 @@ func (ctx *Context) ScanReader(r io.Reader) BasicScanner {
 }
 
 func (ctx *Context) readOneLine(prompt string) (line string, err error) {
-	if ctx.scanner.Scan(prompt) {
-		line = ctx.scanner.Text()
-	} else if ctx.scanner.Err() != nil {
-		err = ctx.scanner.Err()
+	ctx.Lock()
+	scanner := ctx.scanner
+	ctx.Unlock()
+
+	if scanner == nil {
+		panic("nil scanner")
+	}
+
+	if scanner.Scan(prompt) {
+		line = scanner.Text()
+	} else if scanner.Err() != nil {
+		err = scanner.Err()
 	} else {
 		err = io.EOF
 	}
