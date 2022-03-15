@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"github.com/alitto/pond"
 	"github.com/gobs/args"
 	"github.com/gobs/cmd/internal"
 	"github.com/gobs/pretty"
@@ -31,6 +32,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"log"
 )
 
 var (
@@ -108,6 +111,91 @@ func (c *WordCompleter) Complete(start, line string) (matches []string) {
 //
 func NewWordCompleter(words CompleterWords, cond CompleterCond) *WordCompleter {
 	return &WordCompleter{Words: words, Cond: cond}
+}
+
+//
+// A "context" for the "go" command
+//
+
+type GoRunner interface {
+	Run(task func())
+	Wait()
+}
+
+//
+// This is a fully unbounded runner
+// - Run starts a new goroutine
+// - Wait is a noop
+//
+type unbounded struct {
+}
+
+func UnboundedRunner() GoRunner {
+	return (*unbounded)(nil)
+}
+
+func (r *unbounded) Run(task func()) {
+	go task()
+}
+
+func (r *unbounded) Wait() {
+}
+
+//
+// This is a bounded runner that only runs up to `waitMax` goroutines.
+// When the maximum is reached it waits for the current set to complete
+// before running more.
+//
+type bounded struct {
+	waitGroup sync.WaitGroup
+	waitMax   int
+	waitCount int
+}
+
+func BoundedRunner(max int) GoRunner {
+	return &bounded{waitMax: max}
+}
+
+func (r *bounded) Run(task func()) {
+	if r.waitCount >= r.waitMax {
+		log.Println("run wait", r.waitCount, r.waitMax)
+		r.waitGroup.Wait()
+		r.waitCount = 0
+		log.Println("run reset wait", r.waitCount, r.waitMax)
+	}
+
+	r.waitCount++
+	r.waitGroup.Add(1)
+	log.Println("run ", r.waitCount, r.waitMax)
+	go func() {
+		task()
+		r.waitGroup.Done()
+	}()
+}
+
+func (r *bounded) Wait() {
+	log.Println("wait")
+	r.waitGroup.Wait()
+}
+
+//
+// This is a bounded runner, based on a goroutine pool.
+//
+
+type pooled struct {
+	pool *pond.WorkerPool
+}
+
+func PoolRunner(workers, capacity int, options ...pond.Option) GoRunner {
+	return &pooled{pool: pond.New(workers, capacity, options...)}
+}
+
+func (r *pooled) Run(task func()) {
+	r.pool.Submit(task)
+}
+
+func (r *pooled) Wait() {
+	r.pool.StopAndWait()
 }
 
 //
@@ -195,8 +283,7 @@ type Cmd struct {
 	commandCompleter  *WordCompleter
 	functionCompleter *WordCompleter
 
-	waitGroup          *sync.WaitGroup
-	waitMax, waitCount int
+	runner GoRunner
 
 	interrupted bool
 	context     *internal.Context
@@ -251,7 +338,8 @@ func (cmd *Cmd) Init(plugins ...Plugin) {
 		return cmd.Help(line)
 	}, nil})
 	cmd.Add(Command{"echo", `echo input line`, cmd.command_echo, nil})
-	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start|--wait]'`, cmd.command_go, nil})
+	cmd.Add(Command{"go", `go cmd: asynchronous execution of cmd, or 'go [--start [n]|--pool [w [cap]]|--wait]'`,
+		cmd.command_go, nil})
 	cmd.Add(Command{"time", `time [starttime]`, cmd.command_time, nil})
 	cmd.Add(Command{"output", `output [filename|--]`, cmd.command_output, nil})
 	cmd.Add(Command{"exit", `exit program`, cmd.command_exit, nil})
@@ -481,55 +569,54 @@ func (cmd *Cmd) command_echo(line string) (stop bool) {
 
 func (cmd *Cmd) command_go(line string) (stop bool) {
 	if strings.HasPrefix(line, "-") {
-		// should be --start or --wait
+		// should be --start, --pool or --wait
 
 		args := args.ParseArgs(line)
 
 		if _, ok := args.Options["start"]; ok {
-			cmd.waitGroup = new(sync.WaitGroup)
-			cmd.waitCount = 0
-			cmd.waitMax = 0
+			max := 10
 
 			if len(args.Arguments) > 0 {
-				cmd.waitMax, _ = strconv.Atoi(args.Arguments[0])
+				max, _ = strconv.Atoi(args.Arguments[0])
 			}
 
-			return
-		}
+			cmd.runner = BoundedRunner(max)
+		} else if _, ok := args.Options["pool"]; ok {
+			pmax := 1
+			pcap := 10
 
-		if _, ok := args.Options["wait"]; ok {
-			if cmd.waitGroup == nil {
+			if len(args.Arguments) > 0 {
+				pmax, _ = strconv.Atoi(args.Arguments[0])
+			}
+
+			if len(args.Arguments) > 1 {
+				pcap, _ = strconv.Atoi(args.Arguments[1])
+			}
+
+			cmd.runner = PoolRunner(pmax, pcap)
+		} else if _, ok := args.Options["wait"]; ok {
+			if cmd.runner == nil {
 				fmt.Println("nothing to wait on")
 			} else {
-				cmd.waitGroup.Wait()
-				cmd.waitGroup = nil
+				cmd.runner.Wait()
+				cmd.runner = nil
 			}
-
-			return
+		} else {
+			fmt.Println("invalid option")
 		}
 
-		fmt.Println("invalid option")
 		return
 	}
 
 	if strings.HasPrefix(line, "go ") {
 		fmt.Println("Don't go go me!")
-	} else if cmd.waitGroup == nil {
-		go cmd.OneCmd(line)
+	} else if cmd.runner == nil {
+		go cmd.OneCmd(line) // here I should use an unbounded runner, but this is the same
 	} else {
-		if cmd.waitMax > 0 {
-			if cmd.waitCount >= cmd.waitMax {
-				cmd.waitGroup.Wait()
-				cmd.waitCount = 0
-			}
-		}
-
-		cmd.waitCount++
-		cmd.waitGroup.Add(1)
-		go func() {
-			defer cmd.waitGroup.Done()
+		cmd.runner.Run(func() {
+			fmt.Println("RUN", line)
 			cmd.OneCmd(line)
-		}()
+		})
 	}
 
 	return
