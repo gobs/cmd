@@ -547,11 +547,20 @@ func (cf *controlFlow) evalConditional(line string) (res bool, err error) {
 }
 
 func parseInt64(v string) (int64, error) {
-	return strconv.ParseInt(v, 10, 64)
+	base := 10
+	if strings.HasPrefix(v, "0x") {
+		base = 16
+		v = v[2:]
+	} else if strings.HasPrefix(v, "0") {
+		base = 8
+		v = v[1:]
+	}
+
+	return strconv.ParseInt(v, base, 64)
 }
 
 func parseInt(v string) (int, error) {
-	i, err := strconv.ParseInt(v, 10, 64)
+	i, err := parseInt64(v)
 	return int(i), err
 }
 
@@ -597,6 +606,16 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 	var res interface{}
 
 	switch op {
+	case "hex": // hex number...
+		var li []string
+
+		for _, n := range args.GetArgs(line) {
+			i, _ := parseInt64(n)
+			li = append(li, intString(i, 16))
+		}
+
+		res = strings.Join(li, " ")
+
 	case "round": // [up|down] number
 		roundFunction := func(n float64) float64 {
 			f := math.Floor(n)
