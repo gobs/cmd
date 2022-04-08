@@ -11,7 +11,7 @@ import (
 	"os"
 	//"strconv"
 	"strings"
-	//"time"
+	"time"
 )
 
 var (
@@ -81,6 +81,14 @@ func main() {
 		Interrupt:   OnInterrupt,
 		Recover:     OnRecover,
 		EnableShell: true,
+	}
+
+	commander.GetPrompt = func(cont bool) string {
+		if cont {
+			return commander.ContinuationPrompt
+		}
+
+		return strings.ReplaceAll(commander.Prompt, "%T", time.Now().Format("2006-01-02 03:04:05"))
 	}
 
 	commander.Init(controlflow.Plugin, json.Plugin, stats.Plugin)

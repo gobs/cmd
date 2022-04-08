@@ -211,6 +211,10 @@ type Cmd struct {
 	// the history file
 	HistoryFile string
 
+	// this function is called to fetch the current prompt
+	// so it can be overridden to provide a dynamic prompt
+	GetPrompt func(bool) string
+
 	// this function is called before starting the command loop
 	PreLoop func()
 
@@ -295,6 +299,15 @@ type Cmd struct {
 // Initialize the command interpreter context
 //
 func (cmd *Cmd) Init(plugins ...Plugin) {
+	if cmd.GetPrompt == nil {
+		cmd.GetPrompt = func(cont bool) string {
+			if cont {
+				return cmd.ContinuationPrompt
+			}
+
+			return cmd.Prompt
+		}
+	}
 	if cmd.PreLoop == nil {
 		cmd.PreLoop = func() {}
 	}
@@ -731,7 +744,7 @@ func (cmd *Cmd) oneCmd(line string) (stop bool) {
 	}
 
 	if cmd.GetBoolVar("echo") {
-		fmt.Println(cmd.Prompt, line)
+		fmt.Println(cmd.GetPrompt(false), line)
 	}
 
 	if cmd.EnableShell && strings.HasPrefix(line, "!") {
@@ -810,7 +823,7 @@ func (cmd *Cmd) CmdLoop() {
 func (cmd *Cmd) runLoop(mainLoop bool) (stop bool) {
 	// loop until ReadLine returns nil (signalling EOF)
 	for {
-		line, err := cmd.context.ReadLine(cmd.Prompt, cmd.ContinuationPrompt)
+		line, err := cmd.context.ReadLine(cmd.GetPrompt(false), cmd.GetPrompt(true))
 		if err != nil {
 			if err != io.EOF {
 				fmt.Println(err)
