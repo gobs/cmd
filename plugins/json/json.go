@@ -2,10 +2,9 @@
 //
 // The new commands are:
 //
-//   json : creates a json object out of key/value pairs or lists
-//   jsonpath : parses a json object and extract specified fields
-//   format : pretty-print specified json object
-//
+//	json : creates a json object out of key/value pairs or lists
+//	jsonpath : parses a json object and extract specified fields
+//	format : pretty-print specified json object
 package json
 
 import (
@@ -129,9 +128,7 @@ func merge_array(dst array_type, src interface{}) array_type {
 	}
 }
 
-//
 // PluginInit initialize this plugin
-//
 func (p *jsonPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 
 	setError := func(err interface{}) {

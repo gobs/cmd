@@ -3,7 +3,6 @@
 // The new commands are in the form:
 //
 // stats {type} values...
-//
 package stats
 
 import (
@@ -81,9 +80,7 @@ func Percentile(input stats.Float64Data, percent float64) (percentile float64, e
 	return
 }
 
-//
 // PluginInit initialize this plugin
-//
 func (p *statsPlugin) PluginInit(commander *cmd.Cmd, _ *internal.Context) error {
 
 	commander.Add(cmd.Command{"stats",

@@ -134,9 +134,7 @@ func (ctx *Context) writeHistoryFile() {
 	}
 }
 
-//
 // PushScope pushes a new scope for variables, with the associated dvalues
-//
 func (ctx *Context) PushScope(vars map[string]string, args []string) {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -160,9 +158,7 @@ func (ctx *Context) PushScope(vars map[string]string, args []string) {
 	ctx.scopes = append(ctx.scopes, scope)
 }
 
-//
 // PopScope removes the current scope, restoring the previous one
-//
 func (ctx *Context) PopScope() {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -175,9 +171,7 @@ func (ctx *Context) PopScope() {
 	ctx.scopes = ctx.scopes[:l-1]
 }
 
-//
 // GetScope returns the variable sets for the specified scope
-//
 func (ctx *Context) GetScope(scope Scope) Arguments {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -200,9 +194,7 @@ func (ctx *Context) GetScope(scope Scope) Arguments {
 	return ctx.scopes[i]
 }
 
-//
 // SetVar sets a variable in the current, parent or global scope
-//
 func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -248,9 +240,7 @@ func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 	ctx.scopes[i][k] = fmt.Sprintf("%v", v)
 }
 
-//
 // UnsetVar removes a variable from the current, parent or global scope
-//
 func (ctx *Context) UnsetVar(k string, scope Scope) {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -275,9 +265,7 @@ func (ctx *Context) UnsetVar(k string, scope Scope) {
 	}
 }
 
-//
 // GetVar return the value of the specified variable from the closest scope
-//
 func (ctx *Context) GetVar(k string) (string, bool) {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -291,9 +279,7 @@ func (ctx *Context) GetVar(k string) (string, bool) {
 	return "", false
 }
 
-//
 // GetAllVars return a copy of all variables available at the current scope
-//
 func (ctx *Context) GetAllVars() (all Arguments) {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -309,9 +295,7 @@ func (ctx *Context) GetAllVars() (all Arguments) {
 	return
 }
 
-//
 // GetAllVars return a copy of all variables available at the current scope
-//
 func (ctx *Context) GetVarNames() (names []string) {
 	for name, _ := range ctx.GetAllVars() {
 		names = append(names, name)
@@ -350,18 +334,14 @@ func (ctx *Context) ShiftArgs(n int) {
 	vars["#"] = strconv.Itoa(len(args))
 }
 
-//
 // A basic scanner interface
-//
 type BasicScanner interface {
 	Scan(prompt string) bool
 	Text() string
 	Err() error
 }
 
-//
 // An implementation of basicScanner that works on a list of lines
-//
 type ScanLines struct {
 	lines []string
 }
@@ -383,9 +363,7 @@ func (s *ScanLines) Err() (err error) {
 	return
 }
 
-//
 // An implementation of basicScanner that works with "liner"
-//
 type ScanLiner struct {
 	line *liner.State
 	text string
@@ -405,9 +383,7 @@ func (s *ScanLiner) Err() error {
 	return s.err
 }
 
-//
 // An implementation of basicScanner that works with an io.Reader (wrapped in a bufio.Scanner)
-//
 type ScanReader struct {
 	sr *bufio.Scanner
 }
@@ -424,9 +400,7 @@ func (s *ScanReader) Err() error {
 	return s.sr.Err()
 }
 
-//
 // SetScanner sets the current scanner and return the previos one
-//
 func (ctx *Context) SetScanner(curr BasicScanner) (prev BasicScanner) {
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -435,23 +409,17 @@ func (ctx *Context) SetScanner(curr BasicScanner) (prev BasicScanner) {
 	return
 }
 
-//
 // ScanLiner sets the current scanner to a "liner" scanner
-//
 func (ctx *Context) ScanLiner() BasicScanner {
 	return ctx.SetScanner(&ScanLiner{line: ctx.line})
 }
 
-//
 // ScanBlock sets the current scanner to a block scanner
-//
 func (ctx *Context) ScanBlock(block []string) BasicScanner {
 	return ctx.SetScanner(&ScanLines{lines: block})
 }
 
-//
 // ScanReader sets the current scanner to an io.Reader scanner
-//
 func (ctx *Context) ScanReader(r io.Reader) BasicScanner {
 	return ctx.SetScanner(&ScanReader{sr: bufio.NewScanner(r)})
 }

@@ -1166,9 +1166,7 @@ func (cf *controlFlow) interruptFunction(s os.Signal) bool {
 	return cf._interrupt(s)
 }
 
-//
 // PluginInit initialize this plugin
-//
 func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	if cf.cmd != nil {
 		return nil // already initialized
