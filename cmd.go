@@ -1,16 +1,16 @@
 /*
- This package is used to implement a "line oriented command interpreter", inspired by the python package with
- the same name http://docs.python.org/2/library/cmd.html
+	 This package is used to implement a "line oriented command interpreter", inspired by the python package with
+	 the same name http://docs.python.org/2/library/cmd.html
 
- Usage:
+	 Usage:
 
-	 commander := &Cmd{...}
-	 commander.Init()
+		 commander := &Cmd{...}
+		 commander.Init()
 
-	 commander.Add(Command{...})
-	 commander.Add(Command{...})
+		 commander.Add(Command{...})
+		 commander.Add(Command{...})
 
-	 commander.CmdLoop()
+		 commander.CmdLoop()
 */
 package cmd
 
@@ -19,6 +19,7 @@ import (
 	"github.com/gobs/args"
 	"github.com/gobs/cmd/internal"
 	"github.com/gobs/pretty"
+	"golang.org/x/sync/errgroup"
 
 	"fmt"
 	"io"
@@ -47,9 +48,7 @@ var (
 
 type arguments = map[string]string
 
-//
 // This is used to describe a new command
-//
 type Command struct {
 	// command name
 	Name string
@@ -82,9 +81,7 @@ type linkedCompleter struct {
 type CompleterWords func() []string
 type CompleterCond func(start, line string) bool
 
-//
 // The context for command completion
-//
 type WordCompleter struct {
 	// a function that returns the list of words to match on
 	Words CompleterWords
@@ -106,9 +103,7 @@ func (c *WordCompleter) Complete(start, line string) (matches []string) {
 	return
 }
 
-//
 // Create a WordCompleter and initialize with list of words
-//
 func NewWordCompleter(words CompleterWords, cond CompleterCond) *WordCompleter {
 	return &WordCompleter{Words: words, Cond: cond}
 }
@@ -122,64 +117,35 @@ type GoRunner interface {
 	Wait()
 }
 
-//
-// This is a fully unbounded runner
-// - Run starts a new goroutine
-// - Wait is a noop
-//
-type unbounded struct {
+// This is a runner where you can wait for completions of all tasks
+// with the option to specify the maximum number of tasks to run in parallel.
+type groupRunner struct {
+	waitGroup errgroup.Group
 }
 
-func UnboundedRunner() GoRunner {
-	return (*unbounded)(nil)
-}
-
-func (r *unbounded) Run(task func()) {
-	go task()
-}
-
-func (r *unbounded) Wait() {
-}
-
-//
-// This is a bounded runner that only runs up to `waitMax` goroutines.
-// When the maximum is reached it waits for the current set to complete
-// before running more.
-//
-type bounded struct {
-	waitGroup sync.WaitGroup
-	waitMax   int
-	waitCount int
-}
-
-func BoundedRunner(max int) GoRunner {
-	return &bounded{waitMax: max}
-}
-
-func (r *bounded) Run(task func()) {
-	if r.waitCount >= r.waitMax {
-		log.Println("run wait", r.waitCount, r.waitMax)
-		r.waitGroup.Wait()
-		r.waitCount = 0
-		log.Println("run reset wait", r.waitCount, r.waitMax)
+func GroupRunner(workers int) GoRunner {
+	b := &groupRunner{}
+	if workers >= 0 {
+		b.waitGroup.SetLimit(workers)
 	}
 
-	r.waitCount++
-	r.waitGroup.Add(1)
-	log.Println("run ", r.waitCount, r.waitMax)
-	go func() {
-		task()
-		r.waitGroup.Done()
-	}()
+	return b
 }
 
-func (r *bounded) Wait() {
+func (r *groupRunner) Run(task func()) {
+	r.waitGroup.Go(func() error {
+		task()
+		return nil
+	})
+}
+
+func (r *groupRunner) Wait() {
 	log.Println("wait")
 	r.waitGroup.Wait()
 }
 
 //
-// This is a bounded runner, based on a goroutine pool.
+// This is a runner based on a goroutine pool.
 //
 
 type pooled struct {
@@ -198,9 +164,7 @@ func (r *pooled) Wait() {
 	r.pool.StopAndWait()
 }
 
-//
 // This the the "context" for the command interpreter
-//
 type Cmd struct {
 	// the prompt string
 	Prompt string
@@ -295,9 +259,7 @@ type Cmd struct {
 	sync.RWMutex
 }
 
-//
 // Initialize the command interpreter context
-//
 func (cmd *Cmd) Init(plugins ...Plugin) {
 	if cmd.GetPrompt == nil {
 		cmd.GetPrompt = func(cont bool) string {
@@ -381,9 +343,7 @@ func (cmd *Cmd) Interrupted() (interrupted bool) {
 	return
 }
 
-//
 // Plugin is the interface implemented by plugins
-//
 type Plugin interface {
 	PluginInit(cmd *Cmd, ctx *internal.Context) error
 }
@@ -399,9 +359,7 @@ func (cmd *Cmd) SetPrompt(prompt string, max int) {
 	cmd.Prompt = prompt
 }
 
-//
 // Update function completer (when function list changes)
-//
 func (cmd *Cmd) updateCompleters() {
 	if c := cmd.GetCompleter(""); c == nil { // default completer
 		cmd.commandNames = make([]string, 0, len(cmd.Commands))
@@ -455,9 +413,7 @@ func (cmd *Cmd) GetCompleter(name string) Completer {
 	return nil
 }
 
-//
 // execute shell command
-//
 func shellExec(command string) {
 	args := args.GetArgs(command)
 	if len(args) < 1 {
@@ -479,9 +435,7 @@ func shellExec(command string) {
 	}
 }
 
-//
 // execute shell command and pipe input and/or output
-//
 func pipeExec(command string) *os.File {
 	args := args.GetArgs(command)
 	if len(args) < 1 {
@@ -519,7 +473,6 @@ func pipeExec(command string) *os.File {
 
 // Add a command to the command interpreter.
 // Overrides a command with the same name, if there was one
-//
 func (cmd *Cmd) Add(command Command) {
 	if command.HelpFunc == nil {
 		command.HelpFunc = command.DefaultHelp
@@ -528,10 +481,8 @@ func (cmd *Cmd) Add(command Command) {
 	cmd.Commands[command.Name] = command
 }
 
-//
 // Default help command.
 // It lists all available commands or it displays the help for the specified command
-//
 func (cmd *Cmd) help(line string) (stop bool) {
 	fmt.Println("")
 
@@ -586,17 +537,26 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 
 		args := args.ParseArgs(line)
 
-		if _, ok := args.Options["start"]; ok {
-			max := 10
+		if v, ok := args.Options["start"]; ok {
+			max := -1
+
+			if v != "" {
+				max, _ = strconv.Atoi(v)
+			}
 
 			if len(args.Arguments) > 0 {
 				max, _ = strconv.Atoi(args.Arguments[0])
 			}
 
-			cmd.runner = BoundedRunner(max)
-		} else if _, ok := args.Options["pool"]; ok {
+			fmt.Println("start with", max, "workers")
+			cmd.runner = GroupRunner(max)
+		} else if v, ok := args.Options["pool"]; ok {
 			pmax := 1
 			pcap := 10
+
+			if v != "" {
+				pmax, _ = strconv.Atoi(v)
+			}
 
 			if len(args.Arguments) > 0 {
 				pmax, _ = strconv.Atoi(args.Arguments[0])
@@ -604,8 +564,11 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 
 			if len(args.Arguments) > 1 {
 				pcap, _ = strconv.Atoi(args.Arguments[1])
+			} else if pcap < pmax {
+				pcap = pmax
 			}
 
+			fmt.Println("pool with", pmax, "workers", pcap, "capacity")
 			cmd.runner = PoolRunner(pmax, pcap)
 		} else if _, ok := args.Options["wait"]; ok {
 			if cmd.runner == nil {
@@ -624,7 +587,7 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 	if strings.HasPrefix(line, "go ") {
 		fmt.Println("Don't go go me!")
 	} else if cmd.runner == nil {
-		go cmd.OneCmd(line) // here I should use an unbounded runner, but this is the same
+		go cmd.OneCmd(line)
 	} else {
 		cmd.runner.Run(func() {
 			fmt.Println("RUN", line)
@@ -715,9 +678,7 @@ func (cmd *Cmd) command_exit(line string) (stop bool) {
 	return true
 }
 
-//
 // This method executes one command
-//
 func (cmd *Cmd) oneCmd(line string) (stop bool) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -770,10 +731,8 @@ func (cmd *Cmd) oneCmd(line string) (stop bool) {
 	return
 }
 
-//
 // This is the command interpreter entry point.
 // It displays a prompt, waits for a command and executes it until the selected command returns true
-//
 func (cmd *Cmd) CmdLoop() {
 	if len(cmd.Prompt) == 0 {
 		cmd.Prompt = "> "
@@ -857,12 +816,10 @@ func (cmd *Cmd) runLoop(mainLoop bool) (stop bool) {
 	return
 }
 
-//
 // RunBlock runs a block of code.
 //
 // Note: this is public because it's needed by the ControlFlow plugin (and can't be in interal
 // because of circular dependencies). It shouldn't be used by end-user applications.
-//
 func (cmd *Cmd) RunBlock(name string, body []string, args []string, newscope bool) (stop bool) {
 	if args != nil {
 		args = append([]string{name}, args...)
@@ -885,24 +842,18 @@ func (cmd *Cmd) RunBlock(name string, body []string, args []string, newscope boo
 	return
 }
 
-//
 // SetVar sets a variable in the current scope
-//
 func (cmd *Cmd) SetVar(k string, v interface{}) {
 	cmd.context.SetVar(k, v, internal.LocalScope)
 }
 
-//
 // UnsetVar removes a variable from the current scope
-//
 func (cmd *Cmd) UnsetVar(k string) {
 	cmd.context.UnsetVar(k, internal.LocalScope)
 }
 
-//
 // ChangeVar sets a variable in the current scope
 // and calls the OnChange method
-//
 func (cmd *Cmd) ChangeVar(k string, v interface{}) {
 	var oldv interface{} = NoVar
 	if cur, ok := cmd.context.GetVar(k); ok {
@@ -915,35 +866,27 @@ func (cmd *Cmd) ChangeVar(k string, v interface{}) {
 	}
 }
 
-//
 // GetVar return the value of the specified variable from the closest scope
-//
 func (cmd *Cmd) GetVar(k string) (string, bool) {
 	return cmd.context.GetVar(k)
 }
 
-//
 // GetBoolVar returns the value of the variable as boolean
-//
 func (cmd *Cmd) GetBoolVar(name string) (val bool) {
 	sval, _ := cmd.context.GetVar(name)
 	val, _ = strconv.ParseBool(sval)
 	return
 }
 
-//
 // GetIntVar returns the value of the variable as int
-//
 func (cmd *Cmd) GetIntVar(name string) (val int) {
 	sval, _ := cmd.context.GetVar(name)
 	val, _ = strconv.Atoi(sval)
 	return
 }
 
-//
 // SilentResult returns true if the command should be silent
 // (not print results to the console, but only store in return variable)
-//
 func (cmd *Cmd) SilentResult() bool {
 	return cmd.GetBoolVar("print") == false
 }
