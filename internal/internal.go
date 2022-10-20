@@ -199,6 +199,65 @@ func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
+	ctx.setVar(k, v, scope)
+}
+
+// UnsetVar removes a variable from the current, parent or global scope
+func (ctx *Context) UnsetVar(k string, scope Scope) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	i := len(ctx.scopes) - 1 // index of local scope
+	if i < 0 {
+		panic("no scopes")
+	}
+
+	switch scope {
+	case GlobalScope:
+		i = 0 // index of global scope
+
+	case ParentScope:
+		if i > 0 {
+			i -= 1 // index of parent scope
+		}
+	}
+
+	if _, ok := ctx.scopes[i][k]; ok {
+		delete(ctx.scopes[i], k)
+	}
+}
+
+// GetVar return the value of the specified variable from the closest scope
+func (ctx *Context) GetVar(k string) (string, bool) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	return ctx.getVar(k)
+}
+
+// UpdateVar allows to atomically change the valua of a variable. The `update` callback receives the
+// current value and should returns the new value.
+func (ctx *Context) UpdateVar(k string, scope Scope, update func(string) interface{}) string {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	current, _ := ctx.getVar(k)
+	return ctx.setVar(k, update(current), scope)
+}
+
+// getVar return the value of the specified variable from the closest scope
+func (ctx *Context) getVar(k string) (string, bool) {
+	for i := len(ctx.scopes) - 1; i >= 0; i-- {
+		if v, ok := ctx.scopes[i][k]; ok {
+			return v, true
+		}
+	}
+
+	return "", false
+}
+
+// setVar sets a variable in the current, parent or global scope
+func (ctx *Context) setVar(k string, v interface{}, scope Scope) string {
 	i := len(ctx.scopes) - 1 // index of local scope
 	if i < 0 {
 		panic("no scopes")
@@ -238,45 +297,7 @@ func (ctx *Context) SetVar(k string, v interface{}, scope Scope) {
 	*/
 
 	ctx.scopes[i][k] = fmt.Sprintf("%v", v)
-}
-
-// UnsetVar removes a variable from the current, parent or global scope
-func (ctx *Context) UnsetVar(k string, scope Scope) {
-	ctx.Lock()
-	defer ctx.Unlock()
-
-	i := len(ctx.scopes) - 1 // index of local scope
-	if i < 0 {
-		panic("no scopes")
-	}
-
-	switch scope {
-	case GlobalScope:
-		i = 0 // index of global scope
-
-	case ParentScope:
-		if i > 0 {
-			i -= 1 // index of parent scope
-		}
-	}
-
-	if _, ok := ctx.scopes[i][k]; ok {
-		delete(ctx.scopes[i], k)
-	}
-}
-
-// GetVar return the value of the specified variable from the closest scope
-func (ctx *Context) GetVar(k string) (string, bool) {
-	ctx.Lock()
-	defer ctx.Unlock()
-
-	for i := len(ctx.scopes) - 1; i >= 0; i-- {
-		if v, ok := ctx.scopes[i][k]; ok {
-			return v, true
-		}
-	}
-
-	return "", false
+	return ctx.scopes[i][k]
 }
 
 // GetAllVars return a copy of all variables available at the current scope

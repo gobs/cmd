@@ -847,6 +847,12 @@ func (cmd *Cmd) SetVar(k string, v interface{}) {
 	cmd.context.SetVar(k, v, internal.LocalScope)
 }
 
+// UpdateVar allows to atomically change the valua of a variable. The `update` callback receives the
+// current value and should returns the new value.
+func (cmd *Cmd) UpdateVar(k string, update func(string) interface{}) string {
+	return cmd.context.UpdateVar(k, internal.LocalScope, update)
+}
+
 // UnsetVar removes a variable from the current scope
 func (cmd *Cmd) UnsetVar(k string) {
 	cmd.context.UnsetVar(k, internal.LocalScope)

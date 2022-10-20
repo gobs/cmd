@@ -181,14 +181,24 @@ func (cf *controlFlow) command_function(line string) (stop bool) {
 	return
 }
 
-func (cf *controlFlow) command_variable(line string) (stop bool) {
-	options, line := args.GetOptions(line)
+type opType int
 
-	var remove bool
+const (
+	opNone = iota
+	opSet
+	opRemove
+	opIncr
+	opDecr
+)
+
+func (cf *controlFlow) command_variable(aline string) (stop bool) {
+	options, line := args.GetOptions(aline)
+
 	var scope internal.Scope
+	var op = opSet
 
-	for _, op := range options {
-		switch op {
+	for _, opt := range options {
+		switch opt {
 		case "-g", "--global":
 			scope = internal.GlobalScope
 
@@ -196,10 +206,16 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 			scope = internal.ParentScope
 
 		case "-r", "-rm", "--remove", "-u", "--unset":
-			remove = true
+			op = opRemove
+
+		case "-i", "-incr", "--incr":
+			op = opIncr
+
+		case "-d", "-decr", "--decr":
+			op = opDecr
 
 		default:
-			fmt.Printf("invalid option -%v\n", op)
+			fmt.Printf("invalid option -%v in %q\n", op, aline)
 			return
 		}
 	}
@@ -207,7 +223,7 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 	// var
 	if len(line) == 0 {
 		if scope != internal.InvalidScope {
-			fmt.Printf("invalid use of %v scope option", scope)
+			fmt.Printf("invalid use of %v scope option in %q\n", scope, aline)
 			return
 		}
 
@@ -230,8 +246,8 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 
 	// var name value
 	if len(parts) == 2 {
-		if remove {
-			fmt.Println("invalid use of remove option and value")
+		if op != opSet {
+			fmt.Println("invalid option with name and value in %q\n", aline)
 			return
 		}
 
@@ -248,8 +264,9 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 		return
 	}
 
-	// var -r name
-	if remove {
+	// var -r|-incr|-decr name|
+	switch op {
+	case opRemove:
 		var oldv interface{} = cmd.NoVar
 		if cur, ok := cf.ctx.GetVar(name); ok {
 			oldv = cur
@@ -261,11 +278,25 @@ func (cf *controlFlow) command_variable(line string) (stop bool) {
 			cf.ctx.SetVar(name, newv, scope)
 		}
 		return
+
+	case opIncr:
+		cf.ctx.UpdateVar(name, scope, func(cur string) interface{} {
+			v, _ := parseInt(cur)
+			return v + 1
+		})
+		return
+
+	case opDecr:
+		cf.ctx.UpdateVar(name, scope, func(cur string) interface{} {
+			v, _ := parseInt(cur)
+			return v - 1
+		})
+		return
 	}
 
 	// var name
 	if scope != internal.InvalidScope {
-		fmt.Printf("invalid use of %v scope option", scope)
+		fmt.Printf("invalid use of %v scope option in %q\n", scope, aline)
 		return
 	}
 
@@ -594,8 +625,8 @@ operators:
   re|regex|regexp expr string
   or first rest`
 
-func (cf *controlFlow) command_expression(line string) (stop bool) {
-	parts := args.GetArgsN(line, 2) // [ op, arg1 ]
+func (cf *controlFlow) command_expression(aline string) (stop bool) {
+	parts := args.GetArgsN(aline, 2) // [ op, arg1 ]
 	if len(parts) != 2 {
 		fmt.Println("usage:", expr_help)
 		return
@@ -832,7 +863,7 @@ func (cf *controlFlow) command_expression(line string) (stop bool) {
 
 	default:
 
-		fmt.Println("invalid operator:", op)
+		fmt.Printf("invalid operator: %v in %q\n", op, aline)
 		return
 	}
 
@@ -1193,7 +1224,7 @@ func (cf *controlFlow) PluginInit(c *cmd.Cmd, ctx *internal.Context) error {
 	}))
 
 	c.Add(cmd.Command{"function", `function name body`, cf.command_function, nil})
-	c.Add(cmd.Command{"var", `var [-g|--global|--parent] [-r|--remove|-u|--unset] name value`, cf.command_variable, nil})
+	c.Add(cmd.Command{"var", `var [-g|--global|--parent] [-r|--remove|-u|--unset|-i|-incr|-d|--decr] name value`, cf.command_variable, nil})
 	c.Add(cmd.Command{"shift", `shift [n]`, cf.command_shift, nil})
 	c.Add(cmd.Command{"if", `if (condition) command`, cf.command_conditional, nil})
 	c.Add(cmd.Command{"expr", expr_help, cf.command_expression, nil})
