@@ -76,19 +76,19 @@ but you can also define a very short function (one-liner):
 
 Variables can be set/listed using the `var` command:
 
-    var catch 22
+    > var catch 22
 
-    var catch
+    > var catch
         catch: 22
 
-    echo $catch
+    > echo $catch
         22
 
 To unset/remove a variable use:
 
-    var -r catch
-    var -rm catch
-    var --remove catch
+    > var -r catch
+    > var -rm catch
+    > var --remove catch
 
 note that currently only "string" values are supported (i.e. `var x 1` is the same as `var x "1"1)
 
