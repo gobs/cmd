@@ -8,7 +8,7 @@ require (
 	github.com/gobs/jsonpath v1.0.0
 	github.com/gobs/pretty v0.0.0-20180724170744-09732c25a95b
 	github.com/gobs/simplejson v0.0.0-20181106204727-c70e6bd5e26b
-	github.com/gobs/sortedmap v0.0.0-20230319043436-f25b5fb63034
+	github.com/gobs/sortedmap v1.0.0
 	github.com/montanaflynn/stats v0.7.0
 	github.com/peterh/liner v1.2.2
 	golang.org/x/sync v0.1.0

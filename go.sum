@@ -13,8 +13,8 @@ github.com/gobs/pretty v0.0.0-20180724170744-09732c25a95b h1:/vQ+oYKu+JoyaMPDsv5
 github.com/gobs/pretty v0.0.0-20180724170744-09732c25a95b/go.mod h1:Xo4aNUOrJnVruqWQJBtW6+bTBDTniY8yZum5rF3b5jw=
 github.com/gobs/simplejson v0.0.0-20181106204727-c70e6bd5e26b h1:R6nfOvxM/FSBpF6uOitK+RslvoNZ5kUIdOC3HOfiInI=
 github.com/gobs/simplejson v0.0.0-20181106204727-c70e6bd5e26b/go.mod h1:I5K8pVtjLb3st/ifOHRR6S5Z8RS2qj8fUtM0SLndj8Y=
-github.com/gobs/sortedmap v0.0.0-20230319043436-f25b5fb63034 h1:S/PHbsTA8qzmKgXgj0oU+Kli8CDzyrsAGWe1OTeHWEw=
-github.com/gobs/sortedmap v0.0.0-20230319043436-f25b5fb63034/go.mod h1:G24cnpMlxl9YJB04q7se7A2FkoJV4X3iWHU8zb32mnY=
+github.com/gobs/sortedmap v1.0.0 h1:/Mi6smdHqt0XGsr/5HzGttoy/mXjuJq6ssIhENkeNz4=
+github.com/gobs/sortedmap v1.0.0/go.mod h1:G24cnpMlxl9YJB04q7se7A2FkoJV4X3iWHU8zb32mnY=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
