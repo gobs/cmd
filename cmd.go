@@ -569,7 +569,9 @@ func (cmd *Cmd) command_go(line string) (stop bool) {
 			}
 
 			fmt.Println("pool with", pmax, "workers", pcap, "capacity")
-			cmd.runner = PoolRunner(pmax, pcap)
+			cmd.runner = PoolRunner(pmax, pcap, pond.PanicHandler(func(p any) {
+                            panic(p)
+                        }))
 		} else if _, ok := args.Options["wait"]; ok {
 			if cmd.runner == nil {
 				fmt.Println("nothing to wait on")
